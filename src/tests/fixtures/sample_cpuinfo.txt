@@ -1,0 +1,9 @@
+processor : 0
+vendor_id : AuthenticAMD
+cpu family : 23
+model : 8
+model name : AMD Ryzen 5 2600 Six-Core Processor
+cpu MHz : 3700.000
+cache size : 512 KB
+cpu cores : 6
+microcode : 0x800820e
