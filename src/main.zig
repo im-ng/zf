@@ -127,6 +127,11 @@ fn gatherLinuxInfo(allocator: std.mem.Allocator) !info_mod.SystemInfo {
         sys.uptime = info_mod.parseUptime(contents);
     }
 
+    sys.gpu = linux_mod.gpu.getGpuInfo(allocator);
+    sys.packages = linux_mod.packages.getPackages(allocator);
+    sys.de = linux_mod.desktop.getDe(allocator);
+    sys.wm = linux_mod.desktop.getWm(allocator);
+
     if (std.posix.getenv("USER")) |user| {
         sys.user = allocator.dupe(u8, user) catch null;
     }
@@ -203,6 +208,12 @@ fn gatherMacosInfo(allocator: std.mem.Allocator) info_mod.SystemInfo {
     sys.user = util.user;
     sys.terminal = util.terminal;
     sys.cwd = util.cwd;
+    sys.uptime = util.uptime;
+
+    sys.gpu = macos_mod.gpu.getGpuInfo(allocator);
+    sys.packages = macos_mod.packages.getPackages(allocator);
+    sys.de = macos_mod.desktop.getDe(allocator);
+    sys.wm = macos_mod.desktop.getWm(allocator);
 
     return sys;
 }

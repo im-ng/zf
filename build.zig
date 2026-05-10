@@ -4,23 +4,17 @@ pub fn build(b: *std.Build) void {
     const target = b.standardTargetOptions(.{});
     const optimize = b.standardOptimizeOption(.{});
 
-    // Create the info module (shared by all)
     const info_mod = b.createModule(.{ .root_source_file = b.path("src/info.zig") });
-
-    // Create the logos module
     const logos_mod = b.createModule(.{ .root_source_file = b.path("src/logos.zig") });
     logos_mod.addImport("info", info_mod);
 
-    // Create the output module
     const output_mod = b.createModule(.{ .root_source_file = b.path("src/output.zig") });
     output_mod.addImport("info", info_mod);
     output_mod.addImport("logos", logos_mod);
 
-    // Create the cli module
     const cli_mod = b.createModule(.{ .root_source_file = b.path("src/cli.zig") });
     cli_mod.addImport("output", output_mod);
 
-    // Platform modules
     const linux_cpu_mod = b.createModule(.{ .root_source_file = b.path("src/linux/cpu.zig") });
     linux_cpu_mod.addImport("info", info_mod);
 
@@ -33,11 +27,21 @@ pub fn build(b: *std.Build) void {
     const linux_utils_mod = b.createModule(.{ .root_source_file = b.path("src/linux/utils.zig") });
     linux_utils_mod.addImport("info", info_mod);
 
+    const linux_gpu_mod = b.createModule(.{ .root_source_file = b.path("src/linux/gpu.zig") });
+
+    const linux_packages_mod = b.createModule(.{ .root_source_file = b.path("src/linux/packages.zig") });
+
+    const linux_desktop_mod = b.createModule(.{ .root_source_file = b.path("src/linux/desktop.zig") });
+    linux_desktop_mod.addImport("info", info_mod);
+
     const linux_mod = b.createModule(.{ .root_source_file = b.path("src/linux.zig") });
     linux_mod.addImport("cpu", linux_cpu_mod);
     linux_mod.addImport("memory", linux_memory_mod);
     linux_mod.addImport("os", linux_os_mod);
     linux_mod.addImport("utils", linux_utils_mod);
+    linux_mod.addImport("gpu", linux_gpu_mod);
+    linux_mod.addImport("packages", linux_packages_mod);
+    linux_mod.addImport("desktop", linux_desktop_mod);
 
     const macos_cpu_mod = b.createModule(.{ .root_source_file = b.path("src/macos/cpu.zig") });
     macos_cpu_mod.addImport("info", info_mod);
@@ -51,13 +55,21 @@ pub fn build(b: *std.Build) void {
     const macos_utils_mod = b.createModule(.{ .root_source_file = b.path("src/macos/utils.zig") });
     macos_utils_mod.addImport("info", info_mod);
 
+    const macos_gpu_mod = b.createModule(.{ .root_source_file = b.path("src/macos/gpu.zig") });
+
+    const macos_packages_mod = b.createModule(.{ .root_source_file = b.path("src/macos/packages.zig") });
+
+    const macos_desktop_mod = b.createModule(.{ .root_source_file = b.path("src/macos/desktop.zig") });
+
     const macos_mod = b.createModule(.{ .root_source_file = b.path("src/macos.zig") });
     macos_mod.addImport("cpu", macos_cpu_mod);
     macos_mod.addImport("memory", macos_memory_mod);
     macos_mod.addImport("os", macos_os_mod);
     macos_mod.addImport("utils", macos_utils_mod);
+    macos_mod.addImport("gpu", macos_gpu_mod);
+    macos_mod.addImport("packages", macos_packages_mod);
+    macos_mod.addImport("desktop", macos_desktop_mod);
 
-    // Library module
     const lib_mod = b.addModule("zf", .{
         .root_source_file = b.path("src/root.zig"),
         .target = target,
@@ -69,7 +81,6 @@ pub fn build(b: *std.Build) void {
     lib_mod.addImport("linux", linux_mod);
     lib_mod.addImport("macos", macos_mod);
 
-    // Executable
     const exe = b.addExecutable(.{
         .name = "zf",
         .root_module = b.createModule(.{
@@ -98,7 +109,6 @@ pub fn build(b: *std.Build) void {
         run_cmd.addArgs(args);
     }
 
-    // Tests
     const mod_tests = b.addTest(.{
         .root_module = lib_mod,
     });

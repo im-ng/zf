@@ -19,6 +19,11 @@ pub const SystemInfo = struct {
     l2_cache: ?[]const u8 = null,
     l3_cache: ?[]const u8 = null,
 
+    gpu: ?[]const u8 = null,
+    packages: ?[]const u8 = null,
+    de: ?[]const u8 = null,
+    wm: ?[]const u8 = null,
+
     total_memory: ?usize = null,
     free_memory: ?usize = null,
 
@@ -46,6 +51,10 @@ pub const SystemInfo = struct {
         if (self.l1_cache) |v| alloc.free(v);
         if (self.l2_cache) |v| alloc.free(v);
         if (self.l3_cache) |v| alloc.free(v);
+        if (self.gpu) |v| alloc.free(v);
+        if (self.packages) |v| alloc.free(v);
+        if (self.de) |v| alloc.free(v);
+        if (self.wm) |v| alloc.free(v);
         if (self.shell) |v| alloc.free(v);
         if (self.user) |v| alloc.free(v);
         if (self.terminal) |v| alloc.free(v);

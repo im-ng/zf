@@ -27,32 +27,71 @@ pub fn formatOutput(allocator: std.mem.Allocator, sys: info.SystemInfo, flags: D
         lines.deinit(allocator);
     }
 
-    if (flags.show_os or (!flags.show_cpu and !flags.show_mem)) {
-        try addField(allocator, &lines, "OS", sys.os_name, label_color, value_color, reset);
+    const show_default = !flags.show_os and !flags.show_cpu and !flags.show_mem and !flags.show_all;
+
+    if (flags.show_os or flags.show_all or show_default) {
+        if (sys.os_name) |name| {
+            if (sys.os_version) |ver| {
+                var combined: std.ArrayList(u8) = .empty;
+                defer combined.deinit(allocator);
+                try combined.appendSlice(allocator, name);
+                try combined.appendSlice(allocator, " ");
+                try combined.appendSlice(allocator, ver);
+                try addField(allocator, &lines, "OS", combined.items, label_color, value_color, reset);
+            } else {
+                try addField(allocator, &lines, "OS", sys.os_name, label_color, value_color, reset);
+            }
+        } else {
+            try addField(allocator, &lines, "OS", null, label_color, value_color, reset);
+        }
         try addField(allocator, &lines, "Kernel", sys.kernel, label_color, value_color, reset);
         try addField(allocator, &lines, "Hostname", sys.hostname, label_color, value_color, reset);
+        if (sys.uptime) |u| {
+            var num_buf: [64]u8 = undefined;
+            const hours = @as(usize, @intFromFloat(u)) / 3600;
+            const mins = @as(usize, @intFromFloat(u)) % 3600 / 60;
+            const uptime_str = try std.fmt.bufPrint(&num_buf, "{d}h {d}m", .{ hours, mins });
+            try addField(allocator, &lines, "Uptime", uptime_str, label_color, value_color, reset);
+        } else {
+            try addField(allocator, &lines, "Uptime", null, label_color, value_color, reset);
+        }
+        try addField(allocator, &lines, "Packages", sys.packages, label_color, value_color, reset);
+        try addField(allocator, &lines, "Shell", sys.shell, label_color, value_color, reset);
+        try addField(allocator, &lines, "DE", sys.de, label_color, value_color, reset);
+        try addField(allocator, &lines, "WM", sys.wm, label_color, value_color, reset);
+        try addField(allocator, &lines, "Terminal", sys.terminal, label_color, value_color, reset);
+        try addField(allocator, &lines, "User", sys.user, label_color, value_color, reset);
     }
 
-    if (flags.show_cpu or (!flags.show_os and !flags.show_mem and !flags.show_all)) {
+    if (flags.show_cpu or flags.show_all or show_default) {
         try addField(allocator, &lines, "CPU", sys.cpu_model_name, label_color, value_color, reset);
-        try addField(allocator, &lines, "CPU Arch", sys.cpu_arch, label_color, value_color, reset);
-        try addField(allocator, &lines, "CPU Vendor", sys.cpu_vendor, label_color, value_color, reset);
-        try addField(allocator, &lines, "CPU Family", sys.cpu_family, label_color, value_color, reset);
-        try addField(allocator, &lines, "CPU Model", sys.cpu_model, label_color, value_color, reset);
+        if (flags.show_cpu or flags.show_all) {
+            try addField(allocator, &lines, "CPU Arch", sys.cpu_arch, label_color, value_color, reset);
+            try addField(allocator, &lines, "CPU Vendor", sys.cpu_vendor, label_color, value_color, reset);
+            try addField(allocator, &lines, "CPU Family", sys.cpu_family, label_color, value_color, reset);
+            try addField(allocator, &lines, "CPU Model", sys.cpu_model, label_color, value_color, reset);
+        }
         if (sys.cpu_cores) |c| {
             var num_buf: [32]u8 = undefined;
             const s = try std.fmt.bufPrint(&num_buf, "{d}", .{c});
             try addField(allocator, &lines, "CPU Cores", s, label_color, value_color, reset);
+        } else if (flags.show_cpu or flags.show_all) {
+            try addField(allocator, &lines, "CPU Cores", null, label_color, value_color, reset);
         }
         if (sys.cpu_speed) |s| {
             var num_buf: [64]u8 = undefined;
             const str = try std.fmt.bufPrint(&num_buf, "{d:.2} MHz", .{s});
             try addField(allocator, &lines, "CPU Speed", str, label_color, value_color, reset);
+        } else if (flags.show_cpu or flags.show_all) {
+            try addField(allocator, &lines, "CPU Speed", null, label_color, value_color, reset);
         }
-        try addField(allocator, &lines, "Microcode", sys.microcode, label_color, value_color, reset);
-        try addField(allocator, &lines, "L1 Cache", sys.l1_cache, label_color, value_color, reset);
-        try addField(allocator, &lines, "L2 Cache", sys.l2_cache, label_color, value_color, reset);
-        try addField(allocator, &lines, "L3 Cache", sys.l3_cache, label_color, value_color, reset);
+        if (flags.show_cpu or flags.show_all) {
+            try addField(allocator, &lines, "Microcode", sys.microcode, label_color, value_color, reset);
+            try addField(allocator, &lines, "L1 Cache", sys.l1_cache, label_color, value_color, reset);
+            try addField(allocator, &lines, "L2 Cache", sys.l2_cache, label_color, value_color, reset);
+            try addField(allocator, &lines, "L3 Cache", sys.l3_cache, label_color, value_color, reset);
+        }
+        try addField(allocator, &lines, "GPU", sys.gpu, label_color, value_color, reset);
     }
 
     if (flags.show_mem or flags.show_all) {
@@ -66,20 +105,23 @@ pub fn formatOutput(allocator: std.mem.Allocator, sys: info.SystemInfo, flags: D
             const formatted = formatBytesBuf(&mem_buf, m);
             try addField(allocator, &lines, "Free Memory", formatted, label_color, value_color, reset);
         }
-    }
-
-    if (flags.show_all or flags.show_os) {
-        try addField(allocator, &lines, "Shell", sys.shell, label_color, value_color, reset);
-        try addField(allocator, &lines, "User", sys.user, label_color, value_color, reset);
-        try addField(allocator, &lines, "Terminal", sys.terminal, label_color, value_color, reset);
-        if (sys.uptime) |u| {
-            var num_buf: [64]u8 = undefined;
-            const hours = @as(usize, @intFromFloat(u)) / 3600;
-            const mins = @as(usize, @intFromFloat(u)) % 3600 / 60;
-            const uptime_str = try std.fmt.bufPrint(&num_buf, "{d}h {d}m", .{ hours, mins });
-            try addField(allocator, &lines, "Uptime", uptime_str, label_color, value_color, reset);
-        } else {
-            try addField(allocator, &lines, "Uptime", null, label_color, value_color, reset);
+    } else if (show_default) {
+        if (sys.total_memory) |total| {
+            var mem_buf: [64]u8 = undefined;
+            const total_str = formatBytesBuf(&mem_buf, total);
+            if (sys.free_memory) |free| {
+                var free_buf: [64]u8 = undefined;
+                const used = total - free;
+                const used_str = formatBytesBuf(&free_buf, used);
+                var combined: std.ArrayList(u8) = .empty;
+                defer combined.deinit(allocator);
+                try combined.appendSlice(allocator, used_str);
+                try combined.appendSlice(allocator, " / ");
+                try combined.appendSlice(allocator, total_str);
+                try addField(allocator, &lines, "Memory", combined.items, label_color, value_color, reset);
+            } else {
+                try addField(allocator, &lines, "Memory", total_str, label_color, value_color, reset);
+            }
         }
     }
 
