@@ -87,10 +87,10 @@ pub fn formatOutput(allocator: std.mem.Allocator, sys: info.SystemInfo, flags: D
         }
         if (flags.show_cpu or flags.show_all) {
             try addField(allocator, &lines, "Microcode", sys.microcode, label_color, value_color, reset);
-            try addField(allocator, &lines, "L1 Cache", sys.l1_cache, label_color, value_color, reset);
-            try addField(allocator, &lines, "L2 Cache", sys.l2_cache, label_color, value_color, reset);
-            try addField(allocator, &lines, "L3 Cache", sys.l3_cache, label_color, value_color, reset);
         }
+        try addField(allocator, &lines, "L1 Cache", sys.l1_cache, label_color, value_color, reset);
+        try addField(allocator, &lines, "L2 Cache", sys.l2_cache, label_color, value_color, reset);
+        try addField(allocator, &lines, "L3 Cache", sys.l3_cache, label_color, value_color, reset);
         try addField(allocator, &lines, "GPU", sys.gpu, label_color, value_color, reset);
     }
 

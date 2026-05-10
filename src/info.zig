@@ -118,3 +118,58 @@ pub fn parseUptime(contents: []const u8) ?f64 {
     const seconds_str = contents[0..space_pos];
     return std.fmt.parseFloat(f64, seconds_str) catch null;
 }
+
+pub fn extractVersion(text: []const u8) ?[]const u8 {
+    var i: usize = 0;
+    while (i < text.len) : (i += 1) {
+        if (text[i] >= '0' and text[i] <= '9') {
+            if (i + 2 < text.len and text[i + 1] == '.' and text[i + 2] >= '0' and text[i + 2] <= '9') {
+                var end = i;
+                while (end < text.len) {
+                    if (text[end] >= '0' and text[end] <= '9') {
+                        end += 1;
+                    } else if (text[end] == '.' and end + 1 < text.len and text[end + 1] >= '0' and text[end + 1] <= '9') {
+                        end += 1;
+                    } else {
+                        break;
+                    }
+                }
+                if (end > 0 and text[end - 1] == '.') end -= 1;
+                if (end - i >= 3) return text[i..end];
+            }
+        }
+    }
+    return null;
+}
+
+pub fn runVersionCmd(allocator: std.mem.Allocator, argv: []const []const u8) ?[]const u8 {
+    const result = std.process.Child.run(.{
+        .allocator = allocator,
+        .argv = argv,
+    }) catch return null;
+    defer allocator.free(result.stdout);
+    defer allocator.free(result.stderr);
+    const output = if (result.stdout.len > 0) result.stdout else result.stderr;
+    if (extractVersion(output)) |ver| {
+        return allocator.dupe(u8, ver) catch null;
+    }
+    return null;
+}
+
+pub fn containsIgnoreCase(haystack: []const u8, needle: []const u8) bool {
+    if (needle.len > haystack.len) return false;
+    var i: usize = 0;
+    while (i <= haystack.len - needle.len) : (i += 1) {
+        var match = true;
+        for (needle, 0..) |c, j| {
+            const hc = if (haystack[i + j] >= 'A' and haystack[i + j] <= 'Z') haystack[i + j] + 32 else haystack[i + j];
+            const nc = if (c >= 'A' and c <= 'Z') c + 32 else c;
+            if (hc != nc) {
+                match = false;
+                break;
+            }
+        }
+        if (match) return true;
+    }
+    return false;
+}

@@ -11,7 +11,9 @@ Displays OS, CPU, GPU, memory, packages, DE, WM, and system info alongside a dis
 - L1/L2/L3 cache info from sysfs (Linux) or sysctl (macOS)
 - GPU detection via nvidia-smi, lspci, or system_profiler
 - Package counts from dpkg, rpm, pacman, apk, snap, flatpak (Linux) or brew, port (macOS)
-- Desktop Environment and Window Manager detection
+- Desktop Environment detection with version (GNOME, KDE Plasma, XFCE, Cinnamon, MATE, LXQt)
+- Window Manager detection with version
+- Shell detection with version (bash, zsh, fish, etc.)
 - Side-by-side logo + info layout (like neofetch)
 - `--all` mode shows all info without logo
 - Category filters: `--cpu`, `--mem`, `--os`
@@ -62,15 +64,15 @@ zf --version
 
 ### Default (with logo)
 
-OS, Kernel, Hostname, Uptime, Packages, Shell, DE, WM, Terminal, User, CPU, GPU, Memory (used/total)
+OS, Kernel, Hostname, Uptime, Packages, Shell (with version), DE (with version), WM (with version), Terminal, User, CPU, CPU Cores, CPU Speed, L1/L2/L3 Cache, GPU, Memory (used/total)
 
 ### `--os`
 
-OS, Kernel, Hostname, Uptime, Packages, Shell, DE, WM, Terminal, User
+OS, Kernel, Hostname, Uptime, Packages, Shell (with version), DE (with version), WM (with version), Terminal, User
 
 ### `--cpu`
 
-CPU Model, CPU Arch, CPU Vendor, CPU Family, CPU Cores, CPU Speed, Microcode, L1/L2/L3 Cache, GPU
+CPU, CPU Arch, CPU Vendor, CPU Family, CPU Model, CPU Cores, CPU Speed, Microcode, L1/L2/L3 Cache, GPU
 
 ### `--mem`
 
@@ -82,27 +84,32 @@ All fields, no logo
 
 ## Examples
 
+### Default (`zf`)
+
 ```
-$ zf
        _,met$$$$$gg.          OS: Debian GNU/Linux 13 (trixie)
     ,g$$$$$$$$$$$$$$$P.      Kernel: 7.0.3-zabbly+
   ,g$$P"        """Y$$..     Hostname: ryzen
  ,$$P'              `$$$.    Uptime: 3h 36m
 ',$$P       ,ggs.     `$$b:  Packages: 2712 (dpkg), 39 (flatpak)
-`d$$'     ,$$P   .    $$$    Shell: /bin/bash
- $$P      d$$'     ,    $$P  DE: GNOME
- $$:      $$$.   -    ,d$$'  WM: gnome-shell
+`d$$'     ,$$P   .    $$$    Shell: bash 5.2.37
+ $$P      d$$'     ,    $$P  DE: GNOME 46
+ $$:      $$$.   -    ,d$$'  WM: mutter 46.0
  $$;      Y$b._   _,d$P'     Terminal: xterm-256color
  Y$$.    `."Y$$$$P"          User: ng
  `$$b      "-.__              CPU: AMD Ryzen 5 2600 Six-Core Processor
   `Y$$                        CPU Cores: 6
     `Y$$.                     CPU Speed: 3659 MHz
-      `$$b.                   GPU: NVIDIA GeForce RTX 4060 Ti
-        `Y$$b.                Memory: 8.2 GiB / 15.5 GiB
-           "Y$b._
-               """
+      `$$b.                   L1 Cache: 32K
+        `Y$$b.                L2 Cache: 512K
+           "Y$b._             L3 Cache: 8192K
+               """            GPU: NVIDIA GeForce RTX 4060 Ti
+                             Memory: 8.2 GiB / 15.5 GiB
+```
 
-$ zf --cpu
+### CPU only (`zf --cpu`)
+
+```
        _,met$$$$$gg.          CPU: AMD Ryzen 5 2600 Six-Core Processor
     ,g$$$$$$$$$$$$$$$P.      CPU Arch: x86_64
   ,g$$P"        """Y$$..     CPU Vendor: AuthenticAMD
@@ -120,16 +127,19 @@ $ zf --cpu
         `Y$$b.
            "Y$b._
                """
+```
 
-$ zf --all
+### All info (`zf --all`)
+
+```
 OS: Debian GNU/Linux 13 (trixie)
 Kernel: 7.0.3-zabbly+
 Hostname: ryzen
 Uptime: 3h 37m
 Packages: 2712 (dpkg), 39 (flatpak)
-Shell: /bin/bash
-DE: GNOME
-WM: gnome-shell
+Shell: bash 5.2.37
+DE: GNOME 46
+WM: mutter 46.0
 Terminal: xterm-256color
 User: ng
 CPU: AMD Ryzen 5 2600 Six-Core Processor
@@ -138,7 +148,7 @@ CPU Vendor: AuthenticAMD
 CPU Family: 23
 CPU Model: AMD Ryzen 5 2600 Six-Core Processor
 CPU Cores: 6
-CPU Speed: 3792 MHz
+CPU Speed: 3592 MHz
 Microcode: 0x800820e
 L1 Cache: 32K
 L2 Cache: 512K
@@ -190,9 +200,10 @@ Detection uses the `ID=` field from `/etc/os-release` or `DISTRIB_ID=` from `/et
 | Uptime | `/proc/uptime` |
 | GPU | `nvidia-smi`, `lspci`, `/proc/driver/nvidia/gpus/` |
 | Packages | `dpkg-query`, `rpm -qa`, `pacman -Q`, `apk info`, `snap list`, `flatpak list` |
-| DE | `$XDG_CURRENT_DESKTOP`, `$DESKTOP_SESSION`, `$XDG_SESSION_DESKTOP` |
-| WM | `/proc/*/comm` process scan for known WM names |
-| Shell, User, Terminal | Environment variables |
+| DE | `$XDG_CURRENT_DESKTOP`, `$DESKTOP_SESSION`; version via `gnome-shell --version`, `plasmashell --version`, etc. |
+| WM | `/proc/*/comm` scan + `--version` |
+| Shell | `$SHELL` + `$SHELL --version` |
+| User, Terminal | Environment variables |
 
 ### macOS
 
@@ -205,35 +216,36 @@ Detection uses the `ID=` field from `/etc/os-release` or `DISTRIB_ID=` from `/et
 | Memory | `sysctl hw.memsize` |
 | GPU | `system_profiler SPDisplaysDataType` |
 | Packages | `brew list`, `port installed` |
-| DE | Hardcoded "Aqua" |
-| WM | Hardcoded "Quartz Compositor" |
+| DE | "Aqua" + `sw_vers -productVersion` |
+| WM | "Quartz Compositor" + `sw_vers -productVersion` |
 | Uptime | `sysctl kern.boottime` |
+| Shell | `$SHELL` + `$SHELL --version` |
 
 ## Project Structure
 
 ```
 src/
-├── main.zig           # CLI entry point, platform dispatch
-├── info.zig           # SystemInfo struct, Context, parsers
+├── main.zig           # CLI entry point, platform dispatch, shell version
+├── info.zig           # SystemInfo struct, extractVersion(), runVersionCmd()
 ├── cli.zig            # Arg parsing, printHelp, printVersion
 ├── output.zig         # Side-by-side formatting, DisplayFlags
 ├── logos.zig           # ASCII logos, getLogo(), visibleLen()
-├── linux.zig           # Linux module re-exports
+├── linux.zig           # Linux module index
 ├── linux/cpu.zig       # /proc/cpuinfo + sysfs cache parser
 ├── linux/memory.zig    # /proc/meminfo parser
 ├── linux/os.zig        # /etc/os-release, /etc/lsb-release parser
 ├── linux/utils.zig     # /proc/uptime parser
 ├── linux/gpu.zig       # nvidia-smi, lspci, nvidia proc GPU detection
 ├── linux/packages.zig  # dpkg, rpm, pacman, apk, snap, flatpak counting
-├── linux/desktop.zig   # DE from env vars, WM from /proc scan
-├── macos.zig           # macOS module re-exports
+├── linux/desktop.zig   # DE from env vars + version, WM from /proc scan + version
+├── macos.zig           # macOS module index
 ├── macos/cpu.zig       # sysctl CPU + cache info
 ├── macos/memory.zig    # sysctl hw.memsize
 ├── macos/os.zig        # SystemVersion.plist parser, uname
 ├── macos/utils.zig     # env vars, getcwd, uptime via sysctl
 ├── macos/gpu.zig       # system_profiler SPDisplaysDataType
 ├── macos/packages.zig  # brew, port counting
-├── macos/desktop.zig   # Aqua, Quartz Compositor
+├── macos/desktop.zig   # Aqua + version, Quartz Compositor + version
 ├── root.zig            # Library root, re-exports
 └── tests/test_suite.zig
 ```
@@ -243,6 +255,10 @@ src/
 ```bash
 zig build test
 ```
+
+## Attribution
+
+_This entire project coded through GLM 5.1_
 
 ## License
 

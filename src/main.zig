@@ -136,7 +136,7 @@ fn gatherLinuxInfo(allocator: std.mem.Allocator) !info_mod.SystemInfo {
         sys.user = allocator.dupe(u8, user) catch null;
     }
     if (std.posix.getenv("SHELL")) |shell| {
-        sys.shell = allocator.dupe(u8, shell) catch null;
+        sys.shell = getShellWithVersion(allocator, shell);
     }
     if (std.posix.getenv("TERM")) |term| {
         sys.terminal = allocator.dupe(u8, term) catch null;
@@ -204,7 +204,7 @@ fn gatherMacosInfo(allocator: std.mem.Allocator) info_mod.SystemInfo {
     sys.hostname = os_info.hostname;
 
     const util = macos_mod.utils.getSystemInfo(allocator);
-    sys.shell = util.shell;
+    sys.shell = if (std.posix.getenv("SHELL")) |s| getShellWithVersion(allocator, s) else util.shell;
     sys.user = util.user;
     sys.terminal = util.terminal;
     sys.cwd = util.cwd;
@@ -216,6 +216,22 @@ fn gatherMacosInfo(allocator: std.mem.Allocator) info_mod.SystemInfo {
     sys.wm = macos_mod.desktop.getWm(allocator);
 
     return sys;
+}
+
+fn getShellWithVersion(allocator: std.mem.Allocator, shell_path: [*:0]const u8) ?[]const u8 {
+    const path = std.mem.sliceTo(shell_path, 0);
+    const name = std.fs.path.basename(path);
+    const result = std.process.Child.run(.{
+        .allocator = allocator,
+        .argv = &.{ path, "--version" },
+    }) catch return allocator.dupe(u8, name) catch null;
+    defer allocator.free(result.stdout);
+    defer allocator.free(result.stderr);
+    const output = if (result.stdout.len > 0) result.stdout else result.stderr;
+    if (info_mod.extractVersion(output)) |ver| {
+        return std.fmt.allocPrint(allocator, "{s} {s}", .{ name, ver }) catch allocator.dupe(u8, name) catch null;
+    }
+    return allocator.dupe(u8, name) catch null;
 }
 
 test "simple test" {

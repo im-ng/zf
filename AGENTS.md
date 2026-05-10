@@ -16,8 +16,8 @@ zig build test     # Run all tests
 
 ```
 src/
-├── main.zig           # CLI entry, platform dispatch, gatherLinuxInfo/gatherMacosInfo
-├── info.zig           # SystemInfo struct, Context, parsers (setValue, setNumericValue, etc.)
+├── main.zig           # CLI entry, platform dispatch, gatherLinuxInfo/gatherMacosInfo, getShellWithVersion()
+├── info.zig           # SystemInfo struct, extractVersion(), runVersionCmd(), containsIgnoreCase()
 ├── cli.zig            # Arg parsing (DisplayFlags), printHelp, printVersion
 ├── output.zig         # formatOutput(), side-by-side logo+info layout, addField
 ├── logos.zig           # ASCII logos (debian, ubuntu, arch, fedora, macos, zf), getLogo(), visibleLen(), memContains()
@@ -28,7 +28,7 @@ src/
 ├── linux/utils.zig     # parseUptime() from /proc/uptime
 ├── linux/gpu.zig       # getGpuInfo() - nvidia-smi, lspci, /proc/driver/nvidia/gpus/
 ├── linux/packages.zig  # getPackages() - dpkg, rpm, pacman, apk, snap, flatpak
-├── linux/desktop.zig   # getDe() - XDG_CURRENT_DESKTOP/DESKTOP_SESSION, getWm() - /proc scan
+├── linux/desktop.zig   # getDe() - XDG_CURRENT_DESKTOP/DESKTOP_SESSION + version; getWm() - /proc scan + version
 ├── macos.zig           # Re-exports: cpu, memory, os, utils, gpu, packages, desktop
 ├── macos/cpu.zig       # getCpuInfo() via sysctl + readCacheSize() for hw.l{1d,2,3}cachesize
 ├── macos/memory.zig    # getMemoryInfo() via sysctl hw.memsize
@@ -36,7 +36,7 @@ src/
 ├── macos/utils.zig     # getSystemInfo() reads USER, SHELL, TERM env vars + getcwd + getUptime()
 ├── macos/gpu.zig       # getGpuInfo() via system_profiler SPDisplaysDataType
 ├── macos/packages.zig  # getPackages() - brew, port
-├── macos/desktop.zig   # getDe() returns "Aqua", getWm() returns "Quartz Compositor"
+├── macos/desktop.zig   # getDe() returns "Aqua <version>", getWm() returns "Quartz Compositor <version>"
 ├── root.zig            # Library root, re-exports modules
 └── tests/test_suite.zig # Aggregates all module tests via refAllDecls
 ```
@@ -46,8 +46,13 @@ src/
 - **Executable name**: `zf`
 - **Build system**: Zig 0.15.1 native `zig build`
 - **Platform detection**: `builtin.os.tag` — Linux reads `/proc/*`, `/sys/*`, `/etc/*`; macOS uses `sysctl`, `SystemVersion.plist`, env vars
-- **Logo selection**: `getLogo(distro_id, is_linux)` — matches `ID=` from `/etc/os-release` substring (debian, ubuntu, arch, fedora, macos/darwin, mint, pop, suse/opensuse, manjaro, gentoo, nixos); fallback: zf logo (Linux) / macos logo (macOS)
+- **Logo selection**: `getLogo(distro_id, is_linux)` — matches `ID=` from `/etc/os-release` substring
 - **Field formatting**: `addField()` uses `{label_color}{bold}{label}{reset}: {value_color}{val}{reset}`; null values show "Unknown"
+- **Version detection**: `extractVersion()` in info.zig finds X.Y.Z patterns in command output; `runVersionCmd()` runs a command and extracts version
+- **Shell version**: `$SHELL --version` parsed via `extractVersion()`, shown as "bash 5.2.37" etc.
+- **DE version**: `getDe()` runs DE-specific version commands (gnome-shell, plasmashell, etc.)
+- **WM version**: `getWm()` tries `--version` flag on WM binary
+- **DE name**: Handles `XDG_CURRENT_DESKTOP` formats like "ubuntu:GNOME" (takes last component)
 
 ## SystemInfo Fields
 
@@ -63,7 +68,7 @@ src/
 | Flag | Short | DisplayFlags |
 |------|-------|-------------|
 | `--info` | `-i` | default (all sections with logo) |
-| `--cpu` | `-c` | show_cpu=true (detailed CPU + GPU) |
+| `--cpu` | `-c` | show_cpu=true (detailed CPU + GPU + cache) |
 | `--mem` | `-m` | show_mem=true (total/free memory) |
 | `--os` | `-o` | show_os=true (OS, uptime, packages, shell, DE, WM, terminal, user) |
 | `--all` | `-a` | show_all=true, show_logo=false (everything) |
@@ -71,11 +76,11 @@ src/
 ## Output Rendering
 
 Default view shows neofetch-style summary with logo:
-- OS (name + version combined), Kernel, Hostname, Uptime, Packages, Shell, DE, WM, Terminal, User
-- CPU (model + cores + speed), GPU
+- OS (name + version combined), Kernel, Hostname, Uptime, Packages, Shell (with version), DE (with version), WM (with version), Terminal, User
+- CPU (model + cores + speed), L1/L2/L3 Cache, GPU
 - Memory (used / total)
 
-`--os`: OS combined, Kernel, Hostname, Uptime, Packages, Shell, DE, WM, Terminal, User
+`--os`: OS combined, Kernel, Hostname, Uptime, Packages, Shell (with version), DE (with version), WM (with version), Terminal, User
 `--cpu`: Full CPU details (arch, vendor, family, model, cores, speed, microcode, L1/L2/L3 cache) + GPU
 `--mem`: Total Memory, Free Memory
 `--all`: All fields, no logo
@@ -93,9 +98,10 @@ Default view shows neofetch-style summary with logo:
 | uptime | `/proc/uptime` |
 | gpu | `nvidia-smi`, `lspci`, `/proc/driver/nvidia/gpus/*/information` |
 | packages | `dpkg-query`, `rpm -qa`, `pacman -Q`, `apk info`, `snap list`, `flatpak list` |
-| de | `$XDG_CURRENT_DESKTOP`, `$DESKTOP_SESSION`, `$XDG_SESSION_DESKTOP` |
-| wm | `/proc/*/comm` scan for known WM process names |
-| shell, user, terminal | env vars `SHELL`, `USER`, `TERM` |
+| de | `$XDG_CURRENT_DESKTOP`, `$DESKTOP_SESSION`, `$XDG_SESSION_DESKTOP`; version via `gnome-shell --version`, `plasmashell --version`, etc. |
+| wm | `/proc/*/comm` scan for known WM process names + `--version` |
+| shell | `$SHELL` env var + `$SHELL --version` |
+| user, terminal | env vars `USER`, `TERM` |
 | cwd | `getcwd()` |
 
 ## macOS Data Sources
@@ -113,10 +119,11 @@ Default view shows neofetch-style summary with logo:
 | total_memory | `sysctl hw.memsize` |
 | gpu | `system_profiler SPDisplaysDataType` (Chipset Model / Marketing Name) |
 | packages | `brew list -1`, `port installed` |
-| de | hardcoded `"Aqua"` |
-| wm | hardcoded `"Quartz Compositor"` |
+| de | hardcoded `"Aqua"` + `sw_vers -productVersion` |
+| wm | hardcoded `"Quartz Compositor"` + `sw_vers -productVersion` |
 | uptime | `sysctl kern.boottime` → current time - boot time |
-| shell, user, terminal | env vars `SHELL`, `USER`, `TERM` |
+| shell | `$SHELL` env var + `$SHELL --version` |
+| user, terminal | env vars `USER`, `TERM` |
 
 ## Zig 0.15.1 API Notes
 
@@ -128,6 +135,8 @@ Default view shows neofetch-style summary with logo:
 - `std.posix.getcwd()` returns `?[]const u8` in some APIs
 - String concatenation in comptime: use `++` operator with consistent whitespace
 - `ArrayList.append(allocator, item)` takes allocator as first arg (not `.init()`)
+- `std.fs.path.basename()` for path basename (not `std.mem.basename`)
+- `std.posix.getenv()` returns `?[*:0]u8`; use `std.mem.sliceTo(ptr, 0)` for `[]const u8`
 
 ## Common Mistakes
 
@@ -139,6 +148,9 @@ Default view shows neofetch-style summary with logo:
 6. `setValue`/`setNumericValue`/`setFloatValue` are in `info.zig` and prefixed with module import
 7. `ArrayList.append()` takes `(allocator, item)` in Zig 0.15.1, not just `(item)`
 8. `ArrayList` initialization: use `.empty` not `.init(allocator)`
+9. `DESKTOP_SESSION` may contain a path like `/usr/bin/gnome`; use `basename` to extract just "gnome"
+10. `XDG_CURRENT_DESKTOP` may contain colon-separated values like "ubuntu:GNOME"; take last component
+11. Version extraction `extractVersion()` finds first X.Y or X.Y.Z pattern in command output
 
 ## Testing
 
