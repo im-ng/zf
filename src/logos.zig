@@ -21,6 +21,9 @@ const bbl = "\x1b[1;34m";
 const bcy = "\x1b[1;36m";
 const bwh = "\x1b[1;37m";
 
+const blk = "\x1b[30m";
+const drk = "\x1b[1;30m";
+
 const zf_logo = [_][]const u8{
     "                           ",
     bcy ++ "       ████" ++ R ++ "                  ",
@@ -145,7 +148,14 @@ const macos_logo = [_][]const u8{
     bwh ++ "        \"cooc*\"    \"*coo'\"" ++ R,
 };
 
-pub fn getLogo(distro_id: ?[]const u8, is_linux: bool) LogoSet {
+pub fn getLogo(distro_id: ?[]const u8, is_linux: bool, light_theme: bool) LogoSet {
+    if (light_theme) {
+        return getLogoLight(distro_id, is_linux);
+    }
+    return getLogoDark(distro_id, is_linux);
+}
+
+fn getLogoDark(distro_id: ?[]const u8, is_linux: bool) LogoSet {
     if (distro_id) |id| {
         if (memContains(id, "debian")) return .{ .logo = &debian_logo, .label_color = red, .value_color = wht };
         if (memContains(id, "ubuntu")) return .{ .logo = &ubuntu_logo, .label_color = red, .value_color = wht };
@@ -160,9 +170,29 @@ pub fn getLogo(distro_id: ?[]const u8, is_linux: bool) LogoSet {
         if (memContains(id, "nixos")) return .{ .logo = &ubuntu_logo, .label_color = blu, .value_color = wht };
     }
     if (is_linux) {
-        return .{ .logo = &zf_logo, .label_color = cyn, .value_color = wht };
+        return .{ .logo = &zf_logo, .label_color = yel, .value_color = wht };
     }
     return .{ .logo = &macos_logo, .label_color = grn, .value_color = wht };
+}
+
+fn getLogoLight(distro_id: ?[]const u8, is_linux: bool) LogoSet {
+    if (distro_id) |id| {
+        if (memContains(id, "debian")) return .{ .logo = &debian_logo, .label_color = brd, .value_color = blk };
+        if (memContains(id, "ubuntu")) return .{ .logo = &ubuntu_logo, .label_color = brd, .value_color = blk };
+        if (memContains(id, "arch")) return .{ .logo = &arch_logo, .label_color = bbl, .value_color = blk };
+        if (memContains(id, "fedora")) return .{ .logo = &fedora_logo, .label_color = bbl, .value_color = blk };
+        if (memContains(id, "macos") or memContains(id, "darwin")) return .{ .logo = &macos_logo, .label_color = bgr, .value_color = blk };
+        if (memContains(id, "mint")) return .{ .logo = &ubuntu_logo, .label_color = bgr, .value_color = blk };
+        if (memContains(id, "pop")) return .{ .logo = &ubuntu_logo, .label_color = bbl, .value_color = blk };
+        if (memContains(id, "suse") or memContains(id, "opensuse")) return .{ .logo = &ubuntu_logo, .label_color = bgr, .value_color = blk };
+        if (memContains(id, "manjaro")) return .{ .logo = &arch_logo, .label_color = bgr, .value_color = blk };
+        if (memContains(id, "gentoo")) return .{ .logo = &ubuntu_logo, .label_color = "\x1b[1;35m", .value_color = blk };
+        if (memContains(id, "nixos")) return .{ .logo = &ubuntu_logo, .label_color = bbl, .value_color = blk };
+    }
+    if (is_linux) {
+        return .{ .logo = &zf_logo, .label_color = "\x1b[1;33m", .value_color = blk };
+    }
+    return .{ .logo = &macos_logo, .label_color = bgr, .value_color = blk };
 }
 
 fn memContains(haystack: []const u8, needle: []const u8) bool {
@@ -185,6 +215,43 @@ pub fn visibleLen(line: []const u8) usize {
         }
     }
     return len;
+}
+
+pub fn adaptLogoForTheme(allocator: std.mem.Allocator, logo: []const []const u8, light_theme: bool) ![]const []const u8 {
+    if (!light_theme) return logo;
+
+    var adapted = std.ArrayList([]const u8).empty;
+    defer adapted.deinit(allocator);
+    for (logo) |line| {
+        const new_line = try replaceWhiteInString(allocator, line);
+        try adapted.append(allocator, new_line);
+    }
+    return adapted.toOwnedSlice(allocator);
+}
+
+fn replaceWhiteInString(allocator: std.mem.Allocator, line: []const u8) ![]const u8 {
+    const result = try allocator.dupe(u8, line);
+    replaceSlice(result, "\x1b[1;37m", "\x1b[1;30m");
+    replaceSlice(result, "\x1b[37m", "\x1b[30m");
+    return result;
+}
+
+fn replaceSlice(buf: []u8, old: []const u8, new: []const u8) void {
+    var i: usize = 0;
+    while (i + old.len <= buf.len) {
+        if (std.mem.eql(u8, buf[i .. i + old.len], old)) {
+            @memcpy(buf[i .. i + new.len], new);
+            i += new.len;
+        } else {
+            i += 1;
+        }
+    }
+}
+
+pub fn freeAdaptedLogo(allocator: std.mem.Allocator, adapted: []const []const u8, was_adapted: bool) void {
+    if (!was_adapted) return;
+    for (adapted) |line| allocator.free(line);
+    allocator.free(adapted);
 }
 
 pub fn getLinuxLogo() []const []const u8 {

@@ -15,11 +15,21 @@ pub fn formatOutput(allocator: std.mem.Allocator, sys: info.SystemInfo, flags: D
     defer buf.deinit(allocator);
     const writer = buf.writer(allocator);
 
-    const logo_set = logos.getLogo(sys.distro_id, is_linux);
-    const logo = logo_set.logo;
+    const light_theme = info.detectLightTheme();
+    const logo_set = logos.getLogo(sys.distro_id, is_linux, light_theme);
+    const raw_logo = logo_set.logo;
     const label_color = logo_set.label_color;
     const value_color = logo_set.value_color;
     const reset = "\x1b[0m";
+
+    var adapted_logo: ?[]const []const u8 = null;
+    if (light_theme) {
+        adapted_logo = logos.adaptLogoForTheme(allocator, raw_logo, true) catch null;
+    }
+    const logo = if (adapted_logo) |a| a else raw_logo;
+    defer {
+        if (adapted_logo) |a| logos.freeAdaptedLogo(allocator, a, true);
+    }
 
     var lines: std.ArrayList([]const u8) = .empty;
     defer {

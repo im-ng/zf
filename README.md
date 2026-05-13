@@ -7,6 +7,7 @@ Displays OS, CPU, GPU, memory, packages, DE, WM, and system info alongside a dis
 ## Features
 
 - Distro-specific ASCII art logos (Debian, Ubuntu, Arch, Fedora, macOS, and more) with ANSI colors
+- Automatic light/dark terminal theme detection — adjusts label and value colors for readability
 - Falls back to a default **zf** logo for unrecognized distros
 - L1/L2/L3 cache info from sysfs (Linux) or sysctl (macOS)
 - GPU detection via nvidia-smi, lspci, or system_profiler
@@ -184,6 +185,18 @@ Free Memory: 7.3 GiB
 | Other (default)   | zf    | Cyan        |
 
 Detection uses the `ID=` field from `/etc/os-release` or `DISTRIB_ID=` from `/etc/lsb-release`.
+
+## Theme Detection
+
+`zf` automatically detects whether your terminal is using a light or dark theme:
+
+1. Checks `$COLORSCHEME` environment variable (set by many terminals)
+2. Checks `$TERM_THEME` environment variable
+3. Checks `$BAT_THEME` for "light" keyword
+4. On macOS: runs `defaults read -g AppleInterfaceStyle` — if "Dark" is returned, dark theme; otherwise light theme
+5. Defaults to **dark theme** if no detection succeeds
+
+On light themes, labels use bold dark colors and values use black for maximum readability.
 
 ## Data Sources
 

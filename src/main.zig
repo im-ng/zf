@@ -1,11 +1,7 @@
 const std = @import("std");
 const builtin = @import("builtin");
 
-const cli = @import("cli");
-const info_mod = @import("info");
-const linux_mod = @import("linux");
-const macos_mod = @import("macos");
-const output_mod = @import("output");
+const zf = @import("zf");
 
 pub fn main() !u8 {
     var gpa = std.heap.GeneralPurposeAllocator(.{}){};
@@ -18,9 +14,9 @@ pub fn main() !u8 {
     };
     defer std.process.argsFree(allocator, args);
 
-    var parsed_args: cli.Args = .{ .show_info = true };
+    var parsed_args: zf.Args = .{ .show_info = true };
     if (args.len > 1) {
-        parsed_args = cli.parseArgs(args[1..]) catch {
+        parsed_args = zf.cli.parseArgs(args[1..]) catch {
             std.debug.print("Error: invalid argument. Use --help for usage.\n", .{});
             return 2;
         };
@@ -29,7 +25,7 @@ pub fn main() !u8 {
     if (parsed_args.show_help) {
         var out_buf: [4096]u8 = undefined;
         var out = std.fs.File.stdout().writer(&out_buf);
-        try cli.printHelp(&out.interface);
+        try zf.cli.printHelp(&out.interface);
         try std.Io.Writer.flush(&out.interface);
         return 0;
     }
@@ -37,15 +33,15 @@ pub fn main() !u8 {
     if (parsed_args.show_version) {
         var out_buf: [256]u8 = undefined;
         var out = std.fs.File.stdout().writer(&out_buf);
-        try cli.printVersion(&out.interface);
+        try zf.cli.printVersion(&out.interface);
         try std.Io.Writer.flush(&out.interface);
         return 0;
     }
 
-    const display_flags = cli.argsToDisplayFlags(parsed_args);
+    const display_flags = zf.cli.argsToDisplayFlags(parsed_args);
     const is_linux = builtin.os.tag == .linux;
 
-    var sys: info_mod.SystemInfo = blk: {
+    var sys: zf.SystemInfo = blk: {
         if (is_linux) {
             break :blk try gatherLinuxInfo(allocator);
         } else if (builtin.os.tag == .macos) {
@@ -57,7 +53,7 @@ pub fn main() !u8 {
     };
     defer sys.deinit();
 
-    const result = output_mod.formatOutput(allocator, sys, display_flags, is_linux) catch |err| {
+    const result = zf.output.formatOutput(allocator, sys, display_flags, is_linux) catch |err| {
         std.debug.print("Error formatting output: {}\n", .{err});
         return 1;
     };
@@ -73,12 +69,24 @@ pub fn main() !u8 {
     return 0;
 }
 
-fn gatherLinuxInfo(allocator: std.mem.Allocator) !info_mod.SystemInfo {
-    var sys: info_mod.SystemInfo = .{ .allocator = allocator };
+fn gatherLinuxInfo(allocator: std.mem.Allocator) !zf.SystemInfo {
+    var sys: zf.SystemInfo = .{ .allocator = allocator };
 
     var cpu_buf: [16384]u8 = undefined;
-    if (info_mod.readSmallFile("/proc/cpuinfo", &cpu_buf)) |contents| {
-        const cpu = linux_mod.cpu.getCpuInfoFromString(allocator, contents);
+    if (zf.info.readSmallFile("/proc/cpuinfo", &cpu_buf)) |contents| {
+        var cpu = zf.linux.cpu.getCpuInfoFromString(allocator, contents);
+        defer {
+            cpu.cpu_vendor = null;
+            cpu.cpu_family = null;
+            cpu.cpu_model = null;
+            cpu.cpu_model_name = null;
+            cpu.microcode = null;
+            cpu.l1_cache = null;
+            cpu.l2_cache = null;
+            cpu.l3_cache = null;
+            cpu.cpu_arch = null;
+            cpu.deinit();
+        }
         sys.cpu_vendor = cpu.cpu_vendor;
         sys.cpu_family = cpu.cpu_family;
         sys.cpu_model = cpu.cpu_model;
@@ -93,19 +101,19 @@ fn gatherLinuxInfo(allocator: std.mem.Allocator) !info_mod.SystemInfo {
     }
 
     var mem_buf: [8192]u8 = undefined;
-    if (info_mod.readSmallFile("/proc/meminfo", &mem_buf)) |contents| {
-        const mem = linux_mod.memory.getMemoryInfoFromString(allocator, contents);
+    if (zf.info.readSmallFile("/proc/meminfo", &mem_buf)) |contents| {
+        const mem = zf.linux.memory.getMemoryInfoFromString(allocator, contents);
         sys.total_memory = mem.total_memory;
         sys.free_memory = mem.free_memory;
     }
 
     var os_buf: [4096]u8 = undefined;
-    if (info_mod.readSmallFile("/etc/os-release", &os_buf)) |contents| {
-        linux_mod.os.parseOsRelease(allocator, &sys, contents);
+    if (zf.info.readSmallFile("/etc/os-release", &os_buf)) |contents| {
+        zf.linux.os.parseOsRelease(allocator, &sys, contents);
     }
 
     var hostname_buf: [256]u8 = undefined;
-    if (info_mod.readSmallFile("/etc/hostname", &hostname_buf)) |contents| {
+    if (zf.info.readSmallFile("/etc/hostname", &hostname_buf)) |contents| {
         const trimmed = std.mem.trim(u8, contents, " \t\n\r");
         if (trimmed.len > 0) {
             sys.hostname = allocator.dupe(u8, trimmed) catch null;
@@ -113,7 +121,7 @@ fn gatherLinuxInfo(allocator: std.mem.Allocator) !info_mod.SystemInfo {
     }
 
     var version_buf: [1024]u8 = undefined;
-    if (info_mod.readSmallFile("/proc/version", &version_buf)) |contents| {
+    if (zf.info.readSmallFile("/proc/version", &version_buf)) |contents| {
         const prefix = "Linux version ";
         if (std.mem.startsWith(u8, contents, prefix)) {
             const rest = contents[prefix.len..];
@@ -123,14 +131,14 @@ fn gatherLinuxInfo(allocator: std.mem.Allocator) !info_mod.SystemInfo {
     }
 
     var uptime_buf: [128]u8 = undefined;
-    if (info_mod.readSmallFile("/proc/uptime", &uptime_buf)) |contents| {
-        sys.uptime = info_mod.parseUptime(contents);
+    if (zf.info.readSmallFile("/proc/uptime", &uptime_buf)) |contents| {
+        sys.uptime = zf.info.parseUptime(contents);
     }
 
-    sys.gpu = linux_mod.gpu.getGpuInfo(allocator);
-    sys.packages = linux_mod.packages.getPackages(allocator);
-    sys.de = linux_mod.desktop.getDe(allocator);
-    sys.wm = linux_mod.desktop.getWm(allocator);
+    sys.gpu = zf.linux.gpu.getGpuInfo(allocator);
+    sys.packages = zf.linux.packages.getPackages(allocator);
+    sys.de = zf.linux.desktop.getDe(allocator);
+    sys.wm = zf.linux.desktop.getWm(allocator);
 
     if (std.posix.getenv("USER")) |user| {
         sys.user = allocator.dupe(u8, user) catch null;
@@ -161,8 +169,8 @@ fn gatherLinuxInfo(allocator: std.mem.Allocator) !info_mod.SystemInfo {
 
     if (sys.os_name == null) {
         var lsb_buf: [4096]u8 = undefined;
-        if (info_mod.readSmallFile("/etc/lsb-release", &lsb_buf)) |contents| {
-            linux_mod.os.parseLsbRelease(allocator, &sys, contents);
+        if (zf.info.readSmallFile("/etc/lsb-release", &lsb_buf)) |contents| {
+            zf.linux.os.parseLsbRelease(allocator, &sys, contents);
         }
     }
 
@@ -170,7 +178,6 @@ fn gatherLinuxInfo(allocator: std.mem.Allocator) !info_mod.SystemInfo {
         sys.distro_id = allocator.dupe(u8, "linux") catch null;
     }
 
-    // Fallback: set cpu_arch from builtin if not already set from cpuinfo
     if (sys.cpu_arch == null) {
         sys.cpu_arch = allocator.dupe(u8, @tagName(builtin.cpu.arch)) catch null;
     }
@@ -178,42 +185,73 @@ fn gatherLinuxInfo(allocator: std.mem.Allocator) !info_mod.SystemInfo {
     return sys;
 }
 
-fn gatherMacosInfo(allocator: std.mem.Allocator) info_mod.SystemInfo {
-    var sys: info_mod.SystemInfo = .{ .allocator = allocator };
+fn gatherMacosInfo(allocator: std.mem.Allocator) zf.SystemInfo {
+    var sys: zf.SystemInfo = .{ .allocator = allocator };
 
-    const cpu = macos_mod.cpu.getCpuInfo(allocator);
-    sys.cpu_vendor = cpu.cpu_vendor;
-    sys.cpu_family = cpu.cpu_family;
-    sys.cpu_model = cpu.cpu_model;
-    sys.cpu_model_name = cpu.cpu_model_name;
-    sys.cpu_cores = cpu.cpu_cores;
-    sys.cpu_speed = cpu.cpu_speed;
-    sys.cpu_arch = cpu.cpu_arch;
-    sys.l1_cache = cpu.l1_cache;
-    sys.l2_cache = cpu.l2_cache;
-    sys.l3_cache = cpu.l3_cache;
+    {
+        var cpu = zf.macos.cpu.getCpuInfo(allocator);
+        defer {
+            cpu.cpu_vendor = null;
+            cpu.cpu_family = null;
+            cpu.cpu_model = null;
+            cpu.cpu_model_name = null;
+            cpu.cpu_arch = null;
+            cpu.l1_cache = null;
+            cpu.l2_cache = null;
+            cpu.l3_cache = null;
+            cpu.deinit();
+        }
+        sys.cpu_vendor = cpu.cpu_vendor;
+        sys.cpu_family = cpu.cpu_family;
+        sys.cpu_model = cpu.cpu_model;
+        sys.cpu_model_name = cpu.cpu_model_name;
+        sys.cpu_cores = cpu.cpu_cores;
+        sys.cpu_speed = cpu.cpu_speed;
+        sys.cpu_arch = cpu.cpu_arch;
+        sys.l1_cache = cpu.l1_cache;
+        sys.l2_cache = cpu.l2_cache;
+        sys.l3_cache = cpu.l3_cache;
+    }
 
-    const mem = macos_mod.memory.getMemoryInfo(allocator);
+    const mem = zf.macos.memory.getMemoryInfo(allocator);
     sys.total_memory = mem.total_memory;
     sys.free_memory = mem.free_memory;
 
-    const os_info = macos_mod.os.getOsInfo(allocator);
-    sys.os_name = os_info.os_name;
-    sys.os_version = os_info.os_version;
-    sys.kernel = os_info.kernel;
-    sys.hostname = os_info.hostname;
+    {
+        var os_info = zf.macos.os.getOsInfo(allocator);
+        defer {
+            os_info.os_name = null;
+            os_info.os_version = null;
+            os_info.kernel = null;
+            os_info.hostname = null;
+            os_info.deinit();
+        }
+        sys.os_name = os_info.os_name;
+        sys.os_version = os_info.os_version;
+        sys.kernel = os_info.kernel;
+        sys.hostname = os_info.hostname;
+        sys.distro_id = os_info.distro_id;
+    }
 
-    const util = macos_mod.utils.getSystemInfo(allocator);
-    sys.shell = if (std.posix.getenv("SHELL")) |s| getShellWithVersion(allocator, s) else util.shell;
-    sys.user = util.user;
-    sys.terminal = util.terminal;
-    sys.cwd = util.cwd;
-    sys.uptime = util.uptime;
+    {
+        var util = zf.macos.utils.getSystemInfo(allocator);
+        defer {
+            util.user = null;
+            util.terminal = null;
+            util.cwd = null;
+            util.deinit();
+        }
+        sys.shell = if (std.posix.getenv("SHELL")) |s| getShellWithVersion(allocator, s) else util.shell;
+        sys.user = util.user;
+        sys.terminal = util.terminal;
+        sys.cwd = util.cwd;
+        sys.uptime = util.uptime;
+    }
 
-    sys.gpu = macos_mod.gpu.getGpuInfo(allocator);
-    sys.packages = macos_mod.packages.getPackages(allocator);
-    sys.de = macos_mod.desktop.getDe(allocator);
-    sys.wm = macos_mod.desktop.getWm(allocator);
+    sys.gpu = zf.macos.gpu.getGpuInfo(allocator);
+    sys.packages = zf.macos.packages.getPackages(allocator);
+    sys.de = zf.macos.desktop.getDe(allocator);
+    sys.wm = zf.macos.desktop.getWm(allocator);
 
     return sys;
 }
@@ -228,7 +266,7 @@ fn getShellWithVersion(allocator: std.mem.Allocator, shell_path: [*:0]const u8) 
     defer allocator.free(result.stdout);
     defer allocator.free(result.stderr);
     const output = if (result.stdout.len > 0) result.stdout else result.stderr;
-    if (info_mod.extractVersion(output)) |ver| {
+    if (zf.info.extractVersion(output)) |ver| {
         return std.fmt.allocPrint(allocator, "{s} {s}", .{ name, ver }) catch allocator.dupe(u8, name) catch null;
     }
     return allocator.dupe(u8, name) catch null;

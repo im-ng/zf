@@ -156,6 +156,34 @@ pub fn runVersionCmd(allocator: std.mem.Allocator, argv: []const []const u8) ?[]
     return null;
 }
 
+pub fn detectLightTheme() bool {
+    if (std.posix.getenv("COLORSCHEME")) |cs| {
+        const scheme = std.mem.sliceTo(cs, 0);
+        if (containsIgnoreCase(scheme, "light")) return true;
+        if (containsIgnoreCase(scheme, "dark")) return false;
+    }
+    if (std.posix.getenv("TERM_THEME")) |tt| {
+        const theme = std.mem.sliceTo(tt, 0);
+        if (containsIgnoreCase(theme, "light")) return true;
+        if (containsIgnoreCase(theme, "dark")) return false;
+    }
+    if (std.posix.getenv("BAT_THEME")) |bt| {
+        const theme = std.mem.sliceTo(bt, 0);
+        if (containsIgnoreCase(theme, "light")) return true;
+    }
+    const result = std.process.Child.run(.{
+        .allocator = std.heap.page_allocator,
+        .argv = &.{ "defaults", "read", "-g", "AppleInterfaceStyle" },
+    }) catch return false;
+    defer std.heap.page_allocator.free(result.stdout);
+    defer std.heap.page_allocator.free(result.stderr);
+    if (result.term.Exited == 0) {
+        const trimmed = std.mem.trim(u8, result.stdout, " \t\n\r");
+        if (containsIgnoreCase(trimmed, "Dark")) return false;
+    }
+    return true;
+}
+
 pub fn containsIgnoreCase(haystack: []const u8, needle: []const u8) bool {
     if (needle.len > haystack.len) return false;
     var i: usize = 0;

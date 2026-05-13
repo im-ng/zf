@@ -17,10 +17,10 @@ zig build test     # Run all tests
 ```
 src/
 ├── main.zig           # CLI entry, platform dispatch, gatherLinuxInfo/gatherMacosInfo, getShellWithVersion()
-├── info.zig           # SystemInfo struct, extractVersion(), runVersionCmd(), containsIgnoreCase()
+├── info.zig           # SystemInfo struct, extractVersion(), runVersionCmd(), containsIgnoreCase(), detectLightTheme()
 ├── cli.zig            # Arg parsing (DisplayFlags), printHelp, printVersion
-├── output.zig         # formatOutput(), side-by-side logo+info layout, addField
-├── logos.zig           # ASCII logos (debian, ubuntu, arch, fedora, macos, zf), getLogo(), visibleLen(), memContains()
+├── output.zig         # formatOutput(), side-by-side logo+info layout, addField, theme detection
+├── logos.zig           # ASCII logos, getLogo(distro_id, is_linux, light_theme), visibleLen(), memContains()
 ├── linux.zig           # Re-exports: cpu, memory, os, utils, gpu, packages, desktop
 ├── linux/cpu.zig       # getCpuInfoFromString() parses /proc/cpuinfo + readCacheInfo() from sysfs
 ├── linux/memory.zig    # getMemoryInfoFromString() parses /proc/meminfo
@@ -46,7 +46,8 @@ src/
 - **Executable name**: `zf`
 - **Build system**: Zig 0.15.1 native `zig build`
 - **Platform detection**: `builtin.os.tag` — Linux reads `/proc/*`, `/sys/*`, `/etc/*`; macOS uses `sysctl`, `SystemVersion.plist`, env vars
-- **Logo selection**: `getLogo(distro_id, is_linux)` — matches `ID=` from `/etc/os-release` substring
+- **Logo selection**: `getLogo(distro_id, is_linux, light_theme)` — matches `ID=` from `/etc/os-release` substring; returns dark-theme or light-theme colors based on `detectLightTheme()`
+- **Theme detection**: `detectLightTheme()` checks `$COLORSCHEME`, `$TERM_THEME`, `$BAT_THEME` env vars, then runs `defaults read -g AppleInterfaceStyle` on macOS; defaults to dark theme
 - **Field formatting**: `addField()` uses `{label_color}{bold}{label}{reset}: {value_color}{val}{reset}`; null values show "Unknown"
 - **Version detection**: `extractVersion()` in info.zig finds X.Y.Z patterns in command output; `runVersionCmd()` runs a command and extracts version
 - **Shell version**: `$SHELL --version` parsed via `extractVersion()`, shown as "bash 5.2.37" etc.
