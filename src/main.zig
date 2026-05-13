@@ -224,6 +224,7 @@ fn gatherMacosInfo(allocator: std.mem.Allocator) zf.SystemInfo {
             os_info.os_version = null;
             os_info.kernel = null;
             os_info.hostname = null;
+            os_info.distro_id = null;
             os_info.deinit();
         }
         sys.os_name = os_info.os_name;
@@ -235,17 +236,21 @@ fn gatherMacosInfo(allocator: std.mem.Allocator) zf.SystemInfo {
 
     {
         var util = zf.macos.utils.getSystemInfo(allocator);
-        defer {
-            util.user = null;
-            util.terminal = null;
-            util.cwd = null;
-            util.deinit();
+        const env_shell = std.posix.getenv("SHELL");
+        if (env_shell != null) {
+            // getShellWithVersion creates a new allocation; free util.shell since it's orphaned
+            if (util.shell) |s| allocator.free(s);
         }
-        sys.shell = if (std.posix.getenv("SHELL")) |s| getShellWithVersion(allocator, s) else util.shell;
+        sys.shell = if (env_shell) |s| getShellWithVersion(allocator, s) else util.shell;
         sys.user = util.user;
         sys.terminal = util.terminal;
         sys.cwd = util.cwd;
         sys.uptime = util.uptime;
+        util.shell = null;
+        util.user = null;
+        util.terminal = null;
+        util.cwd = null;
+        util.deinit();
     }
 
     sys.gpu = zf.macos.gpu.getGpuInfo(allocator);
