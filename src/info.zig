@@ -64,6 +64,8 @@ pub const SystemInfo = struct {
 
 pub const Context = struct {
     allocator: std.mem.Allocator,
+    io: std.Io,
+    environ: *std.process.Environ.Map,
 };
 
 pub fn setValue(allocator: std.mem.Allocator, comptime T: type, field: *?[]const u8, line: []const u8, key: []const u8) !void {
@@ -91,23 +93,21 @@ pub fn setFloatValue(field: *?f64, line: []const u8, key: []const u8) void {
     field.* = std.fmt.parseFloat(f64, value) catch null;
 }
 
-pub fn readFileAlloc(allocator: std.mem.Allocator, path: []const u8) ?[]const u8 {
-    const file = std.fs.openFileAbsolute(path, .{}) catch return null;
-    defer file.close();
-    const size = file.getEndPos() catch return null;
-    const buf = allocator.alloc(u8, @intCast(size)) catch return null;
-    const bytes_read = file.readAll(buf) catch return null;
-    if (bytes_read < size) {
-        allocator.free(buf);
-        return null;
-    }
+pub fn readFileAlloc(ctx: Context, path: []const u8) ?[]const u8 {
+    var file = std.Io.Dir.openFileAbsolute(ctx.io, path, .{}) catch return null;
+    defer file.close(ctx.io);
+    var scratch: [4096]u8 = undefined;
+    var reader = file.reader(ctx.io, &scratch);
+    const buf = reader.interface.allocRemaining(ctx.allocator, .unlimited) catch return null;
     return buf;
 }
 
-pub fn readSmallFile(path: []const u8, buf: []u8) ?[]const u8 {
-    const file = std.fs.openFileAbsolute(path, .{}) catch return null;
-    defer file.close();
-    const bytes_read = file.readAll(buf) catch return null;
+pub fn readSmallFile(ctx: Context, path: []const u8, buf: []u8) ?[]const u8 {
+    var file = std.Io.Dir.openFileAbsolute(ctx.io, path, .{}) catch return null;
+    defer file.close(ctx.io);
+    var reader_buf: [4096]u8 = undefined;
+    var reader = file.reader(ctx.io, &reader_buf);
+    const bytes_read = reader.interface.readSliceShort(buf) catch return null;
     return buf[0..bytes_read];
 }
 
@@ -142,42 +142,37 @@ pub fn extractVersion(text: []const u8) ?[]const u8 {
     return null;
 }
 
-pub fn runVersionCmd(allocator: std.mem.Allocator, argv: []const []const u8) ?[]const u8 {
-    const result = std.process.Child.run(.{
-        .allocator = allocator,
+pub fn runVersionCmd(ctx: Context, argv: []const []const u8) ?[]const u8 {
+    const result = std.process.run(ctx.allocator, ctx.io, .{
         .argv = argv,
     }) catch return null;
-    defer allocator.free(result.stdout);
-    defer allocator.free(result.stderr);
+    defer ctx.allocator.free(result.stdout);
+    defer ctx.allocator.free(result.stderr);
     const output = if (result.stdout.len > 0) result.stdout else result.stderr;
     if (extractVersion(output)) |ver| {
-        return allocator.dupe(u8, ver) catch null;
+        return ctx.allocator.dupe(u8, ver) catch null;
     }
     return null;
 }
 
-pub fn detectLightTheme() bool {
-    if (std.posix.getenv("COLORSCHEME")) |cs| {
-        const scheme = std.mem.sliceTo(cs, 0);
-        if (containsIgnoreCase(scheme, "light")) return true;
-        if (containsIgnoreCase(scheme, "dark")) return false;
+pub fn detectLightTheme(ctx: Context) bool {
+    if (ctx.environ.get("COLORSCHEME")) |cs| {
+        if (containsIgnoreCase(cs, "light")) return true;
+        if (containsIgnoreCase(cs, "dark")) return false;
     }
-    if (std.posix.getenv("TERM_THEME")) |tt| {
-        const theme = std.mem.sliceTo(tt, 0);
-        if (containsIgnoreCase(theme, "light")) return true;
-        if (containsIgnoreCase(theme, "dark")) return false;
+    if (ctx.environ.get("TERM_THEME")) |tt| {
+        if (containsIgnoreCase(tt, "light")) return true;
+        if (containsIgnoreCase(tt, "dark")) return false;
     }
-    if (std.posix.getenv("BAT_THEME")) |bt| {
-        const theme = std.mem.sliceTo(bt, 0);
-        if (containsIgnoreCase(theme, "light")) return true;
+    if (ctx.environ.get("BAT_THEME")) |bt| {
+        if (containsIgnoreCase(bt, "light")) return true;
     }
-    const result = std.process.Child.run(.{
-        .allocator = std.heap.page_allocator,
+    const result = std.process.run(ctx.allocator, ctx.io, .{
         .argv = &.{ "defaults", "read", "-g", "AppleInterfaceStyle" },
     }) catch return false;
-    defer std.heap.page_allocator.free(result.stdout);
-    defer std.heap.page_allocator.free(result.stderr);
-    if (result.term.Exited == 0) {
+    defer ctx.allocator.free(result.stdout);
+    defer ctx.allocator.free(result.stderr);
+    if (result.term == .exited and result.term.exited == 0) {
         const trimmed = std.mem.trim(u8, result.stdout, " \t\n\r");
         if (containsIgnoreCase(trimmed, "Dark")) return false;
     }

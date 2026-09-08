@@ -22,12 +22,12 @@ Displays OS, CPU, GPU, memory, packages, DE, WM, and system info alongside a dis
 
 ## Requirements
 
-- Zig 0.15.1
+- Zig 0.16.0
 
 ## Build
 
 ```bash
-zig build
+make release
 ```
 
 ## Usage
@@ -67,19 +67,19 @@ zf --version
 
 OS, Kernel, Hostname, Uptime, Packages, Shell (with version), DE (with version), WM (with version), Terminal, User, CPU, CPU Cores, CPU Speed, L1/L2/L3 Cache, GPU, Memory (used/total)
 
-### `--os`
+#### `--os`
 
 OS, Kernel, Hostname, Uptime, Packages, Shell (with version), DE (with version), WM (with version), Terminal, User
 
-### `--cpu`
+#### `--cpu`
 
 CPU, CPU Arch, CPU Vendor, CPU Family, CPU Model, CPU Cores, CPU Speed, Microcode, L1/L2/L3 Cache, GPU
 
-### `--mem`
+#### `--mem`
 
 Total Memory, Free Memory
 
-### `--all`
+#### `--all`
 
 All fields, no logo
 
@@ -169,20 +169,20 @@ Free Memory: 7.3 GiB
 
 ## Distro Logos
 
-| Distribution       | Logo  | Label Color |
-| ------------------ | ----- | ----------- |
-| Debian             | Tux   | Red         |
-| Ubuntu             | Circle| Red         |
-| Arch Linux         | Arch  | Cyan        |
-| Fedora             | Hat   | Blue        |
-| macOS              | Apple | Green       |
-| Linux Mint         | Circle| Green       |
-| Pop!\_OS           | Circle| Cyan        |
-| openSUSE           | Circle| Green       |
-| Manjaro            | Arch  | Green       |
-| Gentoo             | Circle| Magenta     |
-| NixOS              | Circle| Blue        |
-| Other (default)   | zf    | Cyan        |
+| Distribution    | Logo   | Label Color |
+| --------------- | ------ | ----------- |
+| Debian          | Tux    | Red         |
+| Ubuntu          | Circle | Red         |
+| Arch Linux      | Arch   | Cyan        |
+| Fedora          | Hat    | Blue        |
+| macOS           | Apple  | Green       |
+| Linux Mint      | Circle | Green       |
+| Pop!\_OS        | Circle | Cyan        |
+| openSUSE        | Circle | Green       |
+| Manjaro         | Arch   | Green       |
+| Gentoo          | Circle | Magenta     |
+| NixOS           | Circle | Blue        |
+| Other (default) | zf     | Cyan        |
 
 Detection uses the `ID=` field from `/etc/os-release` or `DISTRIB_ID=` from `/etc/lsb-release`.
 
@@ -202,37 +202,37 @@ On light themes, labels use bold dark colors and values use black for maximum re
 
 ### Linux
 
-| Field | Source |
-|-------|--------|
-| OS name, version, distro_id | `/etc/os-release` |
-| Kernel | `/proc/version`, fallback `uname -r` |
-| Hostname | `/etc/hostname`, fallback `uname -n` |
-| CPU info | `/proc/cpuinfo` |
-| L1/L2/L3 cache | `/sys/devices/system/cpu/cpu0/cache/indexN/{level,size,type}` |
-| Memory | `/proc/meminfo` |
-| Uptime | `/proc/uptime` |
-| GPU | `nvidia-smi`, `lspci`, `/proc/driver/nvidia/gpus/` |
-| Packages | `dpkg-query`, `rpm -qa`, `pacman -Q`, `apk info`, `snap list`, `flatpak list` |
-| DE | `$XDG_CURRENT_DESKTOP`, `$DESKTOP_SESSION`; version via `gnome-shell --version`, `plasmashell --version`, etc. |
-| WM | `/proc/*/comm` scan + `--version` |
-| Shell | `$SHELL` + `$SHELL --version` |
-| User, Terminal | Environment variables |
+| Field                       | Source                                                                                                         |
+| --------------------------- | -------------------------------------------------------------------------------------------------------------- |
+| OS name, version, distro_id | `/etc/os-release`                                                                                              |
+| Kernel                      | `/proc/version`, fallback `uname -r`                                                                           |
+| Hostname                    | `/etc/hostname`, fallback `uname -n`                                                                           |
+| CPU info                    | `/proc/cpuinfo`                                                                                                |
+| L1/L2/L3 cache              | `/sys/devices/system/cpu/cpu0/cache/indexN/{level,size,type}`                                                  |
+| Memory                      | `/proc/meminfo`                                                                                                |
+| Uptime                      | `/proc/uptime`                                                                                                 |
+| GPU                         | `nvidia-smi`, `lspci`, `/proc/driver/nvidia/gpus/`                                                             |
+| Packages                    | `dpkg-query`, `rpm -qa`, `pacman -Q`, `apk info`, `snap list`, `flatpak list`                                  |
+| DE                          | `$XDG_CURRENT_DESKTOP`, `$DESKTOP_SESSION`; version via `gnome-shell --version`, `plasmashell --version`, etc. |
+| WM                          | `/proc/*/comm` scan + `--version`                                                                              |
+| Shell                       | `$SHELL` + `$SHELL --version`                                                                                  |
+| User, Terminal              | Environment variables                                                                                          |
 
 ### macOS
 
-| Field | Source |
-|-------|--------|
-| OS name, version | `SystemVersion.plist` |
-| Kernel, Hostname | `uname()` |
-| CPU info | `sysctl` (machdep.cpu.*, hw.ncpu) |
-| L1/L2/L3 cache | `sysctl` (hw.l1dcachesize, hw.l2cachesize, hw.l3cachesize) |
-| Memory | `sysctl hw.memsize` |
-| GPU | `system_profiler SPDisplaysDataType` |
-| Packages | `brew list`, `port installed` |
-| DE | "Aqua" + `sw_vers -productVersion` |
-| WM | "Quartz Compositor" + `sw_vers -productVersion` |
-| Uptime | `sysctl kern.boottime` |
-| Shell | `$SHELL` + `$SHELL --version` |
+| Field            | Source                                                     |
+| ---------------- | ---------------------------------------------------------- |
+| OS name, version | `SystemVersion.plist`                                      |
+| Kernel, Hostname | `uname()`                                                  |
+| CPU info         | `sysctl` (machdep.cpu.\*, hw.ncpu)                         |
+| L1/L2/L3 cache   | `sysctl` (hw.l1dcachesize, hw.l2cachesize, hw.l3cachesize) |
+| Memory           | `sysctl hw.memsize`                                        |
+| GPU              | `system_profiler SPDisplaysDataType`                       |
+| Packages         | `brew list`, `port installed`                              |
+| DE               | "Aqua" + `sw_vers -productVersion`                         |
+| WM               | "Quartz Compositor" + `sw_vers -productVersion`            |
+| Uptime           | `sysctl kern.boottime`                                     |
+| Shell            | `$SHELL` + `$SHELL --version`                              |
 
 ## Project Structure
 
@@ -271,7 +271,7 @@ zig build test
 
 ## Attribution
 
-_This entire project coded through GLM 5.1_
+_This entire project coded through AI Assistance. Specifically GLM 5.1 for plan and Hy3 for executions_
 
 ## License
 

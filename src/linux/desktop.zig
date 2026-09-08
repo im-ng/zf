@@ -1,25 +1,23 @@
 const std = @import("std");
 const info = @import("info");
 
-pub fn getDe(allocator: std.mem.Allocator) ?[]const u8 {
+pub fn getDe(ctx: info.Context) ?[]const u8 {
+    const allocator = ctx.allocator;
     var de_source: ?[]const u8 = null;
 
-    if (std.posix.getenv("XDG_CURRENT_DESKTOP")) |de| {
-        const raw = std.mem.sliceTo(de, 0);
-        const trimmed = std.mem.trim(u8, raw, " \t\n\r");
+    if (ctx.environ.get("XDG_CURRENT_DESKTOP")) |de| {
+        const trimmed = std.mem.trim(u8, de, " \t\n\r");
         if (trimmed.len > 0) de_source = trimmed;
     }
     if (de_source == null) {
-        if (std.posix.getenv("DESKTOP_SESSION")) |session| {
-            const raw = std.mem.sliceTo(session, 0);
-            const trimmed = std.mem.trim(u8, raw, " \t\n\r");
+        if (ctx.environ.get("DESKTOP_SESSION")) |session| {
+            const trimmed = std.mem.trim(u8, session, " \t\n\r");
             if (trimmed.len > 0) de_source = trimmed;
         }
     }
     if (de_source == null) {
-        if (std.posix.getenv("XDG_SESSION_DESKTOP")) |desktop| {
-            const raw = std.mem.sliceTo(desktop, 0);
-            const trimmed = std.mem.trim(u8, raw, " \t\n\r");
+        if (ctx.environ.get("XDG_SESSION_DESKTOP")) |desktop| {
+            const trimmed = std.mem.trim(u8, desktop, " \t\n\r");
             if (trimmed.len > 0) de_source = trimmed;
         }
     }
@@ -33,7 +31,7 @@ pub fn getDe(allocator: std.mem.Allocator) ?[]const u8 {
 
     if (name.len == 0) return null;
 
-    if (tryDeVersion(allocator, name)) |ver| {
+    if (tryDeVersion(ctx, name)) |ver| {
         const combined = std.fmt.allocPrint(allocator, "{s} {s}", .{ name, ver }) catch {
             allocator.free(ver);
             return allocator.dupe(u8, name) catch null;
@@ -45,24 +43,24 @@ pub fn getDe(allocator: std.mem.Allocator) ?[]const u8 {
     return allocator.dupe(u8, name) catch null;
 }
 
-fn tryDeVersion(allocator: std.mem.Allocator, de_name: []const u8) ?[]const u8 {
+fn tryDeVersion(ctx: info.Context, de_name: []const u8) ?[]const u8 {
     if (info.containsIgnoreCase(de_name, "gnome")) {
-        return info.runVersionCmd(allocator, &.{ "gnome-shell", "--version" });
+        return info.runVersionCmd(ctx, &.{ "gnome-shell", "--version" });
     }
     if (info.containsIgnoreCase(de_name, "kde") or info.containsIgnoreCase(de_name, "plasma")) {
-        return info.runVersionCmd(allocator, &.{ "plasmashell", "--version" });
+        return info.runVersionCmd(ctx, &.{ "plasmashell", "--version" });
     }
     if (info.containsIgnoreCase(de_name, "xfce")) {
-        return info.runVersionCmd(allocator, &.{ "xfce4-panel", "--version" });
+        return info.runVersionCmd(ctx, &.{ "xfce4-panel", "--version" });
     }
     if (info.containsIgnoreCase(de_name, "cinnamon")) {
-        return info.runVersionCmd(allocator, &.{ "cinnamon", "--version" });
+        return info.runVersionCmd(ctx, &.{ "cinnamon", "--version" });
     }
     if (info.containsIgnoreCase(de_name, "mate")) {
-        return info.runVersionCmd(allocator, &.{ "mate-panel", "--version" });
+        return info.runVersionCmd(ctx, &.{ "mate-panel", "--version" });
     }
     if (info.containsIgnoreCase(de_name, "lxqt")) {
-        return info.runVersionCmd(allocator, &.{ "lxqt-panel", "--version" });
+        return info.runVersionCmd(ctx, &.{ "lxqt-panel", "--version" });
     }
     return null;
 }
@@ -79,13 +77,13 @@ const known_wms = [_][]const u8{
     "labwc",        "picom",
 };
 
-pub fn getWm(allocator: std.mem.Allocator) ?[]const u8 {
-    if (std.posix.getenv("HM")) |wm_env| {
-        const raw = std.mem.sliceTo(wm_env, 0);
-        const trimmed = std.mem.trim(u8, raw, " \t\n\r");
+pub fn getWm(ctx: info.Context) ?[]const u8 {
+    const allocator = ctx.allocator;
+    if (ctx.environ.get("HM")) |wm_env| {
+        const trimmed = std.mem.trim(u8, wm_env, " \t\n\r");
         if (trimmed.len > 0) {
             const name = std.fs.path.basename(trimmed);
-            if (tryWmVersion(allocator, trimmed)) |ver| {
+            if (tryWmVersion(ctx, trimmed)) |ver| {
                 const combined = std.fmt.allocPrint(allocator, "{s} {s}", .{ name, ver }) catch {
                     allocator.free(ver);
                     return allocator.dupe(u8, name) catch null;
@@ -97,14 +95,14 @@ pub fn getWm(allocator: std.mem.Allocator) ?[]const u8 {
         }
     }
 
-    const wm_name = findWmProcess(allocator) orelse return null;
+    const wm_name = findWmProcess(ctx) orelse return null;
 
     var path_buf: [256]u8 = undefined;
     const wm_path = std.fmt.bufPrint(&path_buf, "/usr/bin/{s}", .{wm_name}) catch {
         return wm_name;
     };
 
-    if (tryWmVersion(allocator, wm_path)) |ver| {
+    if (tryWmVersion(ctx, wm_path)) |ver| {
         const combined = std.fmt.allocPrint(allocator, "{s} {s}", .{ wm_name, ver }) catch {
             allocator.free(ver);
             return wm_name;
@@ -117,21 +115,22 @@ pub fn getWm(allocator: std.mem.Allocator) ?[]const u8 {
     return wm_name;
 }
 
-fn tryWmVersion(allocator: std.mem.Allocator, cmd_path: []const u8) ?[]const u8 {
-    return info.runVersionCmd(allocator, &.{ cmd_path, "--version" });
+fn tryWmVersion(ctx: info.Context, cmd_path: []const u8) ?[]const u8 {
+    return info.runVersionCmd(ctx, &.{ cmd_path, "--version" });
 }
 
-fn findWmProcess(allocator: std.mem.Allocator) ?[]const u8 {
-    var proc_dir = std.fs.openDirAbsolute("/proc", .{ .iterate = true }) catch return null;
-    defer proc_dir.close();
-    var iter = proc_dir.iterate();
-    while (iter.next() catch return null) |entry| {
+fn findWmProcess(ctx: info.Context) ?[]const u8 {
+    const allocator = ctx.allocator;
+    var proc_dir = std.Io.Dir.openDirAbsolute(ctx.io, "/proc", .{ .iterate = true }) catch return null;
+    defer proc_dir.close(ctx.io);
+    var iter = std.Io.Dir.iterate(proc_dir);
+    while (iter.next(ctx.io) catch return null) |entry| {
         if (entry.kind != .directory) continue;
         _ = std.fmt.parseInt(u32, entry.name, 10) catch continue;
         var path_buf: [128]u8 = undefined;
         const path = std.fmt.bufPrint(&path_buf, "/proc/{s}/comm", .{entry.name}) catch continue;
         var comm_buf: [64]u8 = undefined;
-        const comm_data = info.readSmallFile(path, &comm_buf) orelse continue;
+        const comm_data = info.readSmallFile(ctx, path, &comm_buf) orelse continue;
         const comm = std.mem.trim(u8, comm_data, " \n\r\t");
         if (comm.len == 0) continue;
         for (known_wms) |wm| {

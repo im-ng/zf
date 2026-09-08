@@ -1,11 +1,11 @@
 const std = @import("std");
 const info = @import("info");
 
-pub fn getMemoryInfo(allocator: std.mem.Allocator) info.SystemInfo {
+pub fn getMemoryInfo(ctx: info.Context) info.SystemInfo {
+    const allocator = ctx.allocator;
     var sys = info.SystemInfo{ .allocator = allocator };
 
-    const result = std.process.Child.run(.{
-        .allocator = allocator,
+    const result = std.process.run(ctx.allocator, ctx.io, .{
         .argv = &.{ "sysctl", "-n", "hw.memsize" },
     }) catch return sys;
     defer allocator.free(result.stdout);

@@ -1,33 +1,32 @@
 const std = @import("std");
+const info = @import("info");
 
-pub fn getGpuInfo(allocator: std.mem.Allocator) ?[]const u8 {
-    if (tryNvidiaSmi(allocator)) |gpu| return gpu;
-    if (tryLspci(allocator)) |gpu| return gpu;
-    if (tryNvidiaProc(allocator)) |gpu| return gpu;
+pub fn getGpuInfo(ctx: info.Context) ?[]const u8 {
+    if (tryNvidiaSmi(ctx)) |gpu| return gpu;
+    if (tryLspci(ctx)) |gpu| return gpu;
+    if (tryNvidiaProc(ctx)) |gpu| return gpu;
     return null;
 }
 
-fn tryNvidiaSmi(allocator: std.mem.Allocator) ?[]const u8 {
-    const result = std.process.Child.run(.{
-        .allocator = allocator,
+fn tryNvidiaSmi(ctx: info.Context) ?[]const u8 {
+    const result = std.process.run(ctx.allocator, ctx.io, .{
         .argv = &.{ "nvidia-smi", "--query-gpu=name", "--format=csv,noheader" },
     }) catch return null;
-    defer allocator.free(result.stdout);
-    defer allocator.free(result.stderr);
+    defer ctx.allocator.free(result.stdout);
+    defer ctx.allocator.free(result.stderr);
     const trimmed = std.mem.trim(u8, result.stdout, " \t\n\r\"");
     if (trimmed.len > 0) {
-        return allocator.dupe(u8, trimmed) catch null;
+        return ctx.allocator.dupe(u8, trimmed) catch null;
     }
     return null;
 }
 
-fn tryLspci(allocator: std.mem.Allocator) ?[]const u8 {
-    const result = std.process.Child.run(.{
-        .allocator = allocator,
+fn tryLspci(ctx: info.Context) ?[]const u8 {
+    const result = std.process.run(ctx.allocator, ctx.io, .{
         .argv = &.{ "lspci" },
     }) catch return null;
-    defer allocator.free(result.stdout);
-    defer allocator.free(result.stderr);
+    defer ctx.allocator.free(result.stdout);
+    defer ctx.allocator.free(result.stderr);
 
     var lines = std.mem.splitSequence(u8, result.stdout, "\n");
     while (lines.next()) |line| {
@@ -43,12 +42,12 @@ fn tryLspci(allocator: std.mem.Allocator) ?[]const u8 {
                     const end = paren_pos orelse gpu_part.len;
                     const trimmed = std.mem.trim(u8, gpu_part[0..end], " \t");
                     if (trimmed.len > 0) {
-                        return allocator.dupe(u8, trimmed) catch null;
+                        return ctx.allocator.dupe(u8, trimmed) catch null;
                     }
                 } else {
                     const trimmed = std.mem.trim(u8, after_colon, " \t");
                     if (trimmed.len > 0) {
-                        return allocator.dupe(u8, trimmed) catch null;
+                        return ctx.allocator.dupe(u8, trimmed) catch null;
                     }
                 }
             }
@@ -57,25 +56,22 @@ fn tryLspci(allocator: std.mem.Allocator) ?[]const u8 {
     return null;
 }
 
-fn tryNvidiaProc(allocator: std.mem.Allocator) ?[]const u8 {
-    var gpus_dir = std.fs.openDirAbsolute("/proc/driver/nvidia/gpus", .{ .iterate = true }) catch return null;
-    defer gpus_dir.close();
-    var iter = gpus_dir.iterate();
-    while (iter.next() catch return null) |entry| {
+fn tryNvidiaProc(ctx: info.Context) ?[]const u8 {
+    var gpus_dir = std.Io.Dir.openDirAbsolute(ctx.io, "/proc/driver/nvidia/gpus", .{ .iterate = true }) catch return null;
+    defer gpus_dir.close(ctx.io);
+    var iter = std.Io.Dir.iterate(gpus_dir);
+    while (iter.next(ctx.io) catch return null) |entry| {
         if (entry.kind == .directory) {
             var path_buf: [512]u8 = undefined;
             const info_path = std.fmt.bufPrint(&path_buf, "/proc/driver/nvidia/gpus/{s}/information", .{entry.name}) catch continue;
-            var file = std.fs.openFileAbsolute(info_path, .{}) catch continue;
-            defer file.close();
             var buf: [4096]u8 = undefined;
-            const bytes_read = file.readAll(&buf) catch continue;
-            const contents = buf[0..bytes_read];
+            const contents = info.readSmallFile(ctx, info_path, &buf) orelse continue;
             var lines = std.mem.splitSequence(u8, contents, "\n");
             while (lines.next()) |line| {
                 if (std.mem.startsWith(u8, line, "Model:")) {
                     const model = std.mem.trim(u8, line["Model:".len..], " \t\r");
                     if (model.len > 0) {
-                        return allocator.dupe(u8, model) catch null;
+                        return ctx.allocator.dupe(u8, model) catch null;
                     }
                 }
             }

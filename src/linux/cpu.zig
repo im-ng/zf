@@ -2,7 +2,8 @@ const std = @import("std");
 const builtin = @import("builtin");
 const info = @import("info");
 
-pub fn getCpuInfoFromString(allocator: std.mem.Allocator, contents: []const u8) info.SystemInfo {
+pub fn getCpuInfoFromString(ctx: info.Context, contents: []const u8) info.SystemInfo {
+    const allocator = ctx.allocator;
     var sys = info.SystemInfo{ .allocator = allocator };
     var lines = std.mem.splitSequence(u8, contents, "\n");
     while (lines.next()) |line| {
@@ -24,30 +25,31 @@ pub fn getCpuInfoFromString(allocator: std.mem.Allocator, contents: []const u8) 
         }
     }
 
-    readCacheInfo(allocator, &sys);
+    readCacheInfo(ctx, &sys);
     sys.cpu_arch = allocator.dupe(u8, @tagName(builtin.cpu.arch)) catch null;
     return sys;
 }
 
-fn readCacheInfo(allocator: std.mem.Allocator, sys: *info.SystemInfo) void {
+fn readCacheInfo(ctx: info.Context, sys: *info.SystemInfo) void {
+    const allocator = ctx.allocator;
     var index: usize = 0;
     while (true) : (index += 1) {
         var level_path_buf: [128]u8 = undefined;
         const level_path = std.fmt.bufPrint(&level_path_buf, "/sys/devices/system/cpu/cpu0/cache/index{d}/level", .{index}) catch break;
         var level_data_buf: [64]u8 = undefined;
-        const level_data = info.readSmallFile(level_path, &level_data_buf) orelse break;
+        const level_data = info.readSmallFile(ctx, level_path, &level_data_buf) orelse break;
         const level = std.fmt.parseInt(usize, std.mem.trim(u8, level_data, " \n"), 10) catch continue;
 
         var size_path_buf: [128]u8 = undefined;
         const size_path = std.fmt.bufPrint(&size_path_buf, "/sys/devices/system/cpu/cpu0/cache/index{d}/size", .{index}) catch break;
         var size_data_buf: [64]u8 = undefined;
-        const size_data = info.readSmallFile(size_path, &size_data_buf) orelse continue;
+        const size_data = info.readSmallFile(ctx, size_path, &size_data_buf) orelse continue;
         const size = std.mem.trim(u8, size_data, " \n");
 
         var type_path_buf: [128]u8 = undefined;
         const type_path = std.fmt.bufPrint(&type_path_buf, "/sys/devices/system/cpu/cpu0/cache/index{d}/type", .{index}) catch break;
         var type_data_buf: [64]u8 = undefined;
-        const type_data = info.readSmallFile(type_path, &type_data_buf) orelse continue;
+        const type_data = info.readSmallFile(ctx, type_path, &type_data_buf) orelse continue;
         const cache_type = std.mem.trim(u8, type_data, " \n");
 
         if (level == 1) {
@@ -64,6 +66,9 @@ fn readCacheInfo(allocator: std.mem.Allocator, sys: *info.SystemInfo) void {
 
 test "parse cpuinfo" {
     const allocator = std.testing.allocator;
+    var environ_map = std.process.Environ.Map.init(allocator);
+    defer environ_map.deinit();
+    const ctx = info.Context{ .allocator = allocator, .io = std.testing.io, .environ = &environ_map };
     const sample =
         \\processor : 0
         \\vendor_id : GenuineIntel
@@ -76,7 +81,7 @@ test "parse cpuinfo" {
         \\microcode : 0x96
         \\
     ;
-    var sys = getCpuInfoFromString(allocator, sample);
+    var sys = getCpuInfoFromString(ctx, sample);
     defer sys.deinit();
 
     try std.testing.expect(sys.cpu_vendor != null);
@@ -94,7 +99,10 @@ test "parse cpuinfo" {
 
 test "parse empty cpuinfo" {
     const allocator = std.testing.allocator;
-    var sys = getCpuInfoFromString(allocator, "");
+    var environ_map = std.process.Environ.Map.init(allocator);
+    defer environ_map.deinit();
+    const ctx = info.Context{ .allocator = allocator, .io = std.testing.io, .environ = &environ_map };
+    var sys = getCpuInfoFromString(ctx, "");
     defer sys.deinit();
     try std.testing.expect(sys.cpu_vendor == null);
     try std.testing.expect(sys.cpu_cores == null);

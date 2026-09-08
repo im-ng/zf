@@ -76,8 +76,10 @@ fn createZfModule(b: *std.Build, target: std.Build.ResolvedTarget, optimize: std
     linux_utils.addImport("info", info);
 
     const linux_gpu = b.createModule(.{ .root_source_file = b.path("src/linux/gpu.zig") });
+    linux_gpu.addImport("info", info);
 
     const linux_packages = b.createModule(.{ .root_source_file = b.path("src/linux/packages.zig") });
+    linux_packages.addImport("info", info);
 
     const linux_desktop = b.createModule(.{ .root_source_file = b.path("src/linux/desktop.zig") });
     linux_desktop.addImport("info", info);
@@ -104,10 +106,13 @@ fn createZfModule(b: *std.Build, target: std.Build.ResolvedTarget, optimize: std
     macos_utils.addImport("info", info);
 
     const macos_gpu = b.createModule(.{ .root_source_file = b.path("src/macos/gpu.zig") });
+    macos_gpu.addImport("info", info);
 
     const macos_packages = b.createModule(.{ .root_source_file = b.path("src/macos/packages.zig") });
+    macos_packages.addImport("info", info);
 
     const macos_desktop = b.createModule(.{ .root_source_file = b.path("src/macos/desktop.zig") });
+    macos_desktop.addImport("info", info);
 
     const macos = b.createModule(.{ .root_source_file = b.path("src/macos.zig") });
     macos.addImport("cpu", macos_cpu);

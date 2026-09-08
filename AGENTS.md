@@ -44,7 +44,7 @@ src/
 ## Key Facts
 
 - **Executable name**: `zf`
-- **Build system**: Zig 0.15.1 native `zig build`
+- **Build system**: Zig 0.16.0 native `zig build`
 - **Platform detection**: `builtin.os.tag` — Linux reads `/proc/*`, `/sys/*`, `/etc/*`; macOS uses `sysctl`, `SystemVersion.plist`, env vars
 - **Logo selection**: `getLogo(distro_id, is_linux, light_theme)` — matches `ID=` from `/etc/os-release` substring; returns dark-theme or light-theme colors based on `detectLightTheme()`
 - **Theme detection**: `detectLightTheme()` checks `$COLORSCHEME`, `$TERM_THEME`, `$BAT_THEME` env vars, then runs `defaults read -g AppleInterfaceStyle` on macOS; defaults to dark theme
@@ -126,18 +126,37 @@ Default view shows neofetch-style summary with logo:
 | shell | `$SHELL` env var + `$SHELL --version` |
 | user, terminal | env vars `USER`, `TERM` |
 
-## Zig 0.15.1 API Notes
+## Zig 0.16.0 API Notes
 
 - `std.ArrayList(T).empty` instead of `.init(allocator)`
-- `std.fs.File.stdout().writer(&buf)` then `.interface` for writing
-- `std.posix.uname()` returns value, not takes pointer
+- `ArrayList.append(allocator, item)`, `appendSlice(allocator, items)`, `toOwnedSlice(allocator)`, `deinit(allocator)` all take the allocator explicitly (unmanaged)
+- I/O uses `std.Io`: `std.Io.File.stdout().writer(io, &buf)` then `.interface` for writing; `std.Io.Writer.flush(&out.interface)`
+- `main` takes `init: std.process.Init` which provides `init.gpa`, `init.io`, `init.environ_map`, and `init.minimal.args.vector` (type `[][*:0]const u8`); `std.process.argsAlloc`/`argsFree` are removed
+- External commands: `std.process.run(gpa, io, .{ .argv = ... })` (note: `run` is a module-level function, NOT `std.process.Child.run`)
+- `RunResult.term` is `union(enum)`; check `result.term == .exited and result.term.exited == 0`
+- File reading migrated to `std.Io.Dir`/`std.Io.File` (the whole `std.fs` file API is removed): `std.Io.Dir.openFileAbsolute(io, path, .{})`, `file.reader(io, &scratch)`, `reader.interface.readSliceShort(buf)`; `std.Io.Dir.openDirAbsolute(io, path, .{ .iterate = true })`, `std.Io.Dir.iterate(dir)`, `iter.next(io)`
+- `std.fs.path.basename()` still works (the `std.fs.path` module remains)
+- Env vars: `init.environ_map.get("NAME")` returns `?[]const u8` (no `sliceTo` needed); `std.posix.getenv`/`getcwd` are removed
+- CWD: `std.process.currentPath(io, &buf) catch 0` returns bytes written
+- `std.posix.uname()` still returns value, not pointer; `std.posix.PATH_MAX` still exists
 - `builtin.cpu.arch` not `std.Target.current.cpu.arch`
-- `std.process.Child.run()` for executing external commands
-- `std.posix.getcwd()` returns `?[]const u8` in some APIs
 - String concatenation in comptime: use `++` operator with consistent whitespace
-- `ArrayList.append(allocator, item)` takes allocator as first arg (not `.init()`)
-- `std.fs.path.basename()` for path basename (not `std.mem.basename`)
-- `std.posix.getenv()` returns `?[*:0]u8`; use `std.mem.sliceTo(ptr, 0)` for `[]const u8`
+- `std.mem.trimRight`/`trimLeft` are now `std.mem.trimEnd`/`trimStart`
+- Functions doing I/O or reading env receive `info.Context { allocator, io, environ }` threaded from `main`
+
+## I/O Context Pattern
+
+`info.Context` is the single struct threaded through every function that reads files, runs subprocesses, or reads environment variables:
+
+```zig
+pub const Context = struct {
+    allocator: std.mem.Allocator,
+    io: std.Io,
+    environ: *std.process.Environ.Map,
+};
+```
+
+`std.testing.io` and `std.process.Environ.Map.init(allocator)` provide test equivalents.
 
 ## Common Mistakes
 
@@ -147,7 +166,7 @@ Default view shows neofetch-style summary with logo:
 4. Logo string constants for comptime concatenation must be at module scope
 5. `readSmallFile()` returns optional slice from stack buffer — data valid only within scope
 6. `setValue`/`setNumericValue`/`setFloatValue` are in `info.zig` and prefixed with module import
-7. `ArrayList.append()` takes `(allocator, item)` in Zig 0.15.1, not just `(item)`
+7. `ArrayList.append()` takes `(allocator, item)` in Zig 0.16.0, not just `(item)`
 8. `ArrayList` initialization: use `.empty` not `.init(allocator)`
 9. `DESKTOP_SESSION` may contain a path like `/usr/bin/gnome`; use `basename` to extract just "gnome"
 10. `XDG_CURRENT_DESKTOP` may contain colon-separated values like "ubuntu:GNOME"; take last component
