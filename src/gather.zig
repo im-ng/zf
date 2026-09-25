@@ -206,6 +206,7 @@ fn gatherMacos(ctx: info.Context) info.SystemInfo {
     sys.de = macos.desktop.getDe(ctx);
     sys.wm = macos.desktop.getWm(ctx);
     sys.shell = info.getShellWithVersion(ctx) orelse sys.shell;
+    sys.uptime = macos.utils.getUptime(ctx);
 
     return sys;
 }

@@ -29,8 +29,15 @@ pub fn getOsInfo(allocator: std.mem.Allocator, io: std.Io) info.SystemInfo {
     var sys = info.SystemInfo{ .allocator = allocator };
 
     var buf: [8192]u8 = undefined;
-    if (info.readSmallFile(io, "/usr/libexec/SystemVersion.plist", &buf)) |contents| {
-        parseSystemVersion(allocator, &sys, contents);
+    const plist_paths = [_][]const u8{
+        "/usr/libexec/SystemVersion.plist",
+        "/System/Library/CoreServices/SystemVersion.plist",
+    };
+    for (plist_paths) |path| {
+        if (info.readSmallFile(io, path, &buf)) |contents| {
+            parseSystemVersion(allocator, &sys, contents);
+            if (sys.os_name != null) break;
+        }
     }
 
     const uts = std.posix.uname();
