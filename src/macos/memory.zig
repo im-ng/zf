@@ -1,17 +1,10 @@
 const std = @import("std");
 const info = @import("info");
 
-pub fn getMemoryInfo(ctx: info.Context) info.SystemInfo {
-    const allocator = ctx.allocator;
+pub fn getMemoryInfo(allocator: std.mem.Allocator, io: std.Io) info.SystemInfo {
     var sys = info.SystemInfo{ .allocator = allocator };
 
-    const result = std.process.run(ctx.allocator, ctx.io, .{
-        .argv = &.{ "sysctl", "-n", "hw.memsize" },
-    }) catch return sys;
-    defer allocator.free(result.stdout);
-    defer allocator.free(result.stderr);
-
-    const trimmed = std.mem.trim(u8, result.stdout, " \t\n\r");
+    const trimmed = info.runCapture(allocator, io, &.{ "sysctl", "-n", "hw.memsize" }) orelse return sys;
     sys.total_memory = std.fmt.parseInt(usize, trimmed, 10) catch null;
 
     return sys;

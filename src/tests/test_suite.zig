@@ -8,6 +8,6 @@ test {
     _ = zf.linux.cpu;
     _ = zf.linux.memory;
     _ = zf.linux.os;
-    _ = zf.linux.utils;
     _ = zf.macos.os;
+    _ = zf.gather;
 }

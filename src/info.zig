@@ -111,6 +111,18 @@ pub fn readSmallFile(ctx: Context, path: []const u8, buf: []u8) ?[]const u8 {
     return buf[0..bytes_read];
 }
 
+/// Runs `argv` and returns a trimmed copy of its stdout, or `null` on any
+/// failure. Caller owns the returned slice. Replaces the removed
+/// `std.process.Child.run` for Zig 0.16.
+pub fn runCapture(allocator: std.mem.Allocator, io: std.Io, argv: []const []const u8) ?[]const u8 {
+    const result = std.process.run(allocator, io, .{ .argv = argv }) catch return null;
+    defer allocator.free(result.stdout);
+    defer allocator.free(result.stderr);
+    const trimmed = std.mem.trim(u8, result.stdout, " \t\n\r");
+    if (trimmed.len == 0) return null;
+    return allocator.dupe(u8, trimmed) catch null;
+}
+
 pub fn parseUptime(contents: []const u8) ?f64 {
     const dot_pos = std.mem.indexOfScalar(u8, contents, '.') orelse return null;
     const space_pos = std.mem.indexOfScalar(u8, contents, ' ') orelse return null;

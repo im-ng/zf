@@ -25,12 +25,11 @@ pub fn parseSystemVersion(allocator: std.mem.Allocator, sys: *info.SystemInfo, c
     }
 }
 
-pub fn getOsInfo(ctx: info.Context) info.SystemInfo {
-    const allocator = ctx.allocator;
+pub fn getOsInfo(allocator: std.mem.Allocator, io: std.Io) info.SystemInfo {
     var sys = info.SystemInfo{ .allocator = allocator };
 
     var buf: [8192]u8 = undefined;
-    if (info.readSmallFile(ctx, "/usr/libexec/SystemVersion.plist", &buf)) |contents| {
+    if (info.readSmallFile(io, "/usr/libexec/SystemVersion.plist", &buf)) |contents| {
         parseSystemVersion(allocator, &sys, contents);
     }
 
