@@ -11,30 +11,31 @@ pub const Args = struct {
     show_all: bool = false,
 };
 
-pub const VERSION = "1.0.0";
+pub const VERSION = "1.1.0";
 
-pub fn parseArgs(args: []const []const u8) !Args {
+pub fn parseArgs(args: []const [*:0]const u8) !Args {
     var result = Args{};
     var has_category = false;
 
     for (args) |arg| {
-        if (std.mem.eql(u8, arg, "-h") or std.mem.eql(u8, arg, "--help")) {
+        const a = std.mem.span(arg);
+        if (std.mem.eql(u8, a, "-h") or std.mem.eql(u8, a, "--help")) {
             result.show_help = true;
-        } else if (std.mem.eql(u8, arg, "-v") or std.mem.eql(u8, arg, "--version")) {
+        } else if (std.mem.eql(u8, a, "-v") or std.mem.eql(u8, a, "--version")) {
             result.show_version = true;
-        } else if (std.mem.eql(u8, arg, "-i") or std.mem.eql(u8, arg, "--info")) {
+        } else if (std.mem.eql(u8, a, "-i") or std.mem.eql(u8, a, "--info")) {
             result.show_info = true;
             has_category = true;
-        } else if (std.mem.eql(u8, arg, "-c") or std.mem.eql(u8, arg, "--cpu")) {
+        } else if (std.mem.eql(u8, a, "-c") or std.mem.eql(u8, a, "--cpu")) {
             result.show_cpu = true;
             has_category = true;
-        } else if (std.mem.eql(u8, arg, "-m") or std.mem.eql(u8, arg, "--mem")) {
+        } else if (std.mem.eql(u8, a, "-m") or std.mem.eql(u8, a, "--mem")) {
             result.show_mem = true;
             has_category = true;
-        } else if (std.mem.eql(u8, arg, "-o") or std.mem.eql(u8, arg, "--os")) {
+        } else if (std.mem.eql(u8, a, "-o") or std.mem.eql(u8, a, "--os")) {
             result.show_os = true;
             has_category = true;
-        } else if (std.mem.eql(u8, arg, "-a") or std.mem.eql(u8, arg, "--all")) {
+        } else if (std.mem.eql(u8, a, "-a") or std.mem.eql(u8, a, "--all")) {
             result.show_all = true;
             has_category = true;
         } else {

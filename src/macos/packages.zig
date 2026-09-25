@@ -1,14 +1,16 @@
 const std = @import("std");
+const info = @import("info");
 
-pub fn getPackages(allocator: std.mem.Allocator) ?[]const u8 {
+pub fn getPackages(ctx: info.Context) ?[]const u8 {
+    const allocator = ctx.allocator;
     var parts: std.ArrayList([]const u8) = .empty;
     defer parts.deinit(allocator);
 
-    if (countBrew(allocator)) |count| {
+    if (countBrew(ctx)) |count| {
         const s = std.fmt.allocPrint(allocator, "{d} (brew)", .{count}) catch return null;
         parts.append(allocator, s) catch return null;
     }
-    if (countPort(allocator)) |count| {
+    if (countPort(ctx)) |count| {
         const s = std.fmt.allocPrint(allocator, "{d} (port)", .{count}) catch return null;
         parts.append(allocator, s) catch return null;
     }
@@ -20,13 +22,12 @@ pub fn getPackages(allocator: std.mem.Allocator) ?[]const u8 {
     return total;
 }
 
-fn countBrew(allocator: std.mem.Allocator) ?usize {
-    const result = std.process.Child.run(.{
-        .allocator = allocator,
+fn countBrew(ctx: info.Context) ?usize {
+    const result = std.process.run(ctx.allocator, ctx.io, .{
         .argv = &.{ "brew", "list", "-1" },
     }) catch return null;
-    defer allocator.free(result.stdout);
-    defer allocator.free(result.stderr);
+    defer ctx.allocator.free(result.stdout);
+    defer ctx.allocator.free(result.stderr);
 
     var count: usize = 0;
     var lines = std.mem.splitSequence(u8, result.stdout, "\n");
@@ -36,13 +37,12 @@ fn countBrew(allocator: std.mem.Allocator) ?usize {
     return if (count > 0) count else null;
 }
 
-fn countPort(allocator: std.mem.Allocator) ?usize {
-    const result = std.process.Child.run(.{
-        .allocator = allocator,
+fn countPort(ctx: info.Context) ?usize {
+    const result = std.process.run(ctx.allocator, ctx.io, .{
         .argv = &.{ "port", "installed" },
     }) catch return null;
-    defer allocator.free(result.stdout);
-    defer allocator.free(result.stderr);
+    defer ctx.allocator.free(result.stdout);
+    defer ctx.allocator.free(result.stderr);
 
     var count: usize = 0;
     var lines = std.mem.splitSequence(u8, result.stdout, "\n");

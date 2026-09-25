@@ -64,6 +64,10 @@ fn readCacheInfo(allocator: std.mem.Allocator, io: std.Io, sys: *info.SystemInfo
 
 test "parse cpuinfo" {
     const allocator = std.testing.allocator;
+    var environ_map = std.process.Environ.Map.init(allocator);
+    defer environ_map.deinit();
+    _ = info.Context{ .allocator = allocator, .io = std.testing.io, .environ = &environ_map };
+
     const sample =
         \\processor : 0
         \\vendor_id : GenuineIntel

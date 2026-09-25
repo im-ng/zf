@@ -10,12 +10,33 @@ pub const DisplayFlags = packed struct {
     show_logo: bool = true,
 };
 
-pub fn formatOutput(allocator: std.mem.Allocator, sys: info.SystemInfo, flags: DisplayFlags, is_linux: bool) ![]const u8 {
+const BufWriter = struct {
+    list: *std.ArrayList(u8),
+    alloc: std.mem.Allocator,
+
+    pub fn writeAll(self: *BufWriter, data: []const u8) !void {
+        try self.list.appendSlice(self.alloc, data);
+    }
+    pub fn writeByte(self: *BufWriter, byte: u8) !void {
+        try self.list.append(self.alloc, byte);
+    }
+    pub fn print(self: *BufWriter, comptime fmt: []const u8, args: anytype) !void {
+        var tmp: [4096]u8 = undefined;
+        const result = std.fmt.bufPrint(&tmp, fmt, args) catch &.{};
+        try self.list.appendSlice(self.alloc, result);
+    }
+};
+
+pub fn formatOutput(ctx: info.Context, sys: info.SystemInfo, flags: DisplayFlags, is_linux: bool) ![]const u8 {
+    const allocator = ctx.allocator;
+    var buf: std.ArrayList(u8) = .empty;
+    defer buf.deinit(allocator);
+
+    var bw: BufWriter = .{ .list = &buf, .alloc = allocator };
     var buf_writer: std.Io.Writer.Allocating = .init(allocator);
     errdefer buf_writer.deinit();
-    const writer = &buf_writer.writer;
 
-    const light_theme = info.detectLightTheme();
+    const light_theme = info.detectLightTheme(ctx);
     const logo_set = logos.getLogo(sys.distro_id, is_linux, light_theme);
     const raw_logo = logo_set.logo;
     const label_color = logo_set.label_color;
@@ -148,31 +169,31 @@ pub fn formatOutput(allocator: std.mem.Allocator, sys: info.SystemInfo, flags: D
 
         for (0..max_lines) |i| {
             if (i < logo.len) {
-                try writer.writeAll(logo[i]);
+                try bw.writeAll(logo[i]);
                 const vl = logos.visibleLen(logo[i]);
                 if (vl < logo_visible_width) {
                     var pad = logo_visible_width - vl;
                     while (pad > 0) : (pad -= 1) {
-                        try writer.writeByte(' ');
+                        try bw.writeByte(' ');
                     }
                 }
             } else {
                 var pad = logo_visible_width;
                 while (pad > 0) : (pad -= 1) {
-                    try writer.writeByte(' ');
+                    try bw.writeByte(' ');
                 }
             }
-            try writer.writeAll("  ");
+            try bw.writeAll("  ");
 
             if (i < lines.items.len) {
-                try writer.writeAll(lines.items[i]);
+                try bw.writeAll(lines.items[i]);
             }
-            try writer.writeByte('\n');
+            try bw.writeByte('\n');
         }
     } else {
         for (lines.items) |line| {
-            try writer.writeAll(line);
-            try writer.writeByte('\n');
+            try bw.writeAll(line);
+            try bw.writeByte('\n');
         }
     }
 
@@ -183,8 +204,14 @@ fn addField(allocator: std.mem.Allocator, lines: *std.ArrayList([]const u8), lab
     const val = value orelse "Unknown";
     const bold = "\x1b[1m";
 
+    var buf: std.ArrayList(u8) = .empty;
+    var bw: BufWriter = .{ .list = &buf, .alloc = allocator };
+    try bw.print("{s}{s}{s}{s}: {s}{s}{s}", .{ label_color, bold, label, reset, value_color, val, reset });
+    try lines.append(allocator, try buf.toOwnedSlice(allocator));
+
     var buf_writer: std.Io.Writer.Allocating = .init(allocator);
     errdefer buf_writer.deinit();
+
     const writer = &buf_writer.writer;
     try writer.print("{s}{s}{s}{s}: {s}{s}{s}", .{ label_color, bold, label, reset, value_color, val, reset });
     try lines.append(allocator, try buf_writer.toOwnedSlice());
@@ -212,7 +239,11 @@ test "formatOutput produces output" {
     sys.kernel = try allocator.dupe(u8, "5.15.0");
     defer sys.deinit();
 
-    const output = try formatOutput(allocator, sys, .{ .show_os = true, .show_logo = false }, true);
+    var environ_map = std.process.Environ.Map.init(allocator);
+    defer environ_map.deinit();
+    const ctx = info.Context{ .allocator = allocator, .io = std.testing.io, .environ = &environ_map };
+
+    const output = try formatOutput(ctx, sys, .{ .show_os = true, .show_logo = false }, true);
     defer allocator.free(output);
     try std.testing.expect(output.len > 0);
     try std.testing.expect(std.mem.indexOf(u8, output, "TestOS") != null);
@@ -225,7 +256,11 @@ test "formatOutput with logo" {
     sys.distro_id = try allocator.dupe(u8, "debian");
     defer sys.deinit();
 
-    const output = try formatOutput(allocator, sys, .{ .show_os = true, .show_logo = true }, true);
+    var environ_map = std.process.Environ.Map.init(allocator);
+    defer environ_map.deinit();
+    const ctx = info.Context{ .allocator = allocator, .io = std.testing.io, .environ = &environ_map };
+
+    const output = try formatOutput(ctx, sys, .{ .show_os = true, .show_logo = true }, true);
     defer allocator.free(output);
     try std.testing.expect(output.len > 0);
     try std.testing.expect(std.mem.indexOf(u8, output, "TestOS") != null);

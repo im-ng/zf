@@ -1,12 +1,12 @@
 const std = @import("std");
+const info = @import("info");
 
-pub fn getGpuInfo(allocator: std.mem.Allocator) ?[]const u8 {
-    const result = std.process.Child.run(.{
-        .allocator = allocator,
+pub fn getGpuInfo(ctx: info.Context) ?[]const u8 {
+    const result = std.process.run(ctx.allocator, ctx.io, .{
         .argv = &.{ "system_profiler", "SPDisplaysDataType" },
     }) catch return null;
-    defer allocator.free(result.stdout);
-    defer allocator.free(result.stderr);
+    defer ctx.allocator.free(result.stdout);
+    defer ctx.allocator.free(result.stderr);
 
     var lines = std.mem.splitSequence(u8, result.stdout, "\n");
     while (lines.next()) |line| {
@@ -15,14 +15,14 @@ pub fn getGpuInfo(allocator: std.mem.Allocator) ?[]const u8 {
             const colon_pos = std.mem.indexOfScalar(u8, trimmed, ':') orelse continue;
             const model = std.mem.trim(u8, trimmed[colon_pos + 1 ..], " \t");
             if (model.len > 0) {
-                return allocator.dupe(u8, model) catch null;
+                return ctx.allocator.dupe(u8, model) catch null;
             }
         }
         if (std.mem.startsWith(u8, trimmed, "Marketing Name:")) {
             const colon_pos = std.mem.indexOfScalar(u8, trimmed, ':') orelse continue;
             const name = std.mem.trim(u8, trimmed[colon_pos + 1 ..], " \t");
             if (name.len > 0) {
-                return allocator.dupe(u8, name) catch null;
+                return ctx.allocator.dupe(u8, name) catch null;
             }
         }
     }

@@ -64,6 +64,8 @@ pub const SystemInfo = struct {
 
 pub const Context = struct {
     allocator: std.mem.Allocator,
+    io: std.Io,
+    environ: *std.process.Environ.Map,
 };
 
 pub fn setValue(allocator: std.mem.Allocator, comptime T: type, field: *?[]const u8, line: []const u8, key: []const u8) !void {
