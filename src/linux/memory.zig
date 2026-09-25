@@ -8,14 +8,14 @@ pub fn getMemoryInfoFromString(allocator: std.mem.Allocator, contents: []const u
         if (std.mem.startsWith(u8, line, "MemTotal:")) {
             const sep = std.mem.indexOfScalar(u8, line, ':') orelse continue;
             const val = std.mem.trim(u8, line[sep + 1 ..], " \t");
-            const num_str = std.mem.trimRight(u8, val, " kB");
+            const num_str = std.mem.trimEnd(u8, val, " kB");
             const kb = std.fmt.parseInt(usize, num_str, 10) catch continue;
             sys.total_memory = kb * 1024;
         }
         if (std.mem.startsWith(u8, line, "MemAvailable:")) {
             const sep = std.mem.indexOfScalar(u8, line, ':') orelse continue;
             const val = std.mem.trim(u8, line[sep + 1 ..], " \t");
-            const num_str = std.mem.trimRight(u8, val, " kB");
+            const num_str = std.mem.trimEnd(u8, val, " kB");
             const kb = std.fmt.parseInt(usize, num_str, 10) catch continue;
             sys.free_memory = kb * 1024;
         }

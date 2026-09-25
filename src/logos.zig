@@ -177,7 +177,7 @@ fn getLogoDark(distro_id: ?[]const u8, is_linux: bool) LogoSet {
 
 fn getLogoLight(distro_id: ?[]const u8, is_linux: bool) LogoSet {
     if (distro_id) |id| {
-        if (memContains(id, "debian")) return .{ .logo = &debian_logo, .label_color = brd, .value_color = blk };
+        if (memContains(id, "debian")) return .{ .logo = &debian_logo, .label_color = brd, .value_color = drk };
         if (memContains(id, "ubuntu")) return .{ .logo = &ubuntu_logo, .label_color = brd, .value_color = blk };
         if (memContains(id, "arch")) return .{ .logo = &arch_logo, .label_color = bbl, .value_color = blk };
         if (memContains(id, "fedora")) return .{ .logo = &fedora_logo, .label_color = bbl, .value_color = blk };

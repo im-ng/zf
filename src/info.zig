@@ -91,12 +91,13 @@ pub fn setFloatValue(field: *?f64, line: []const u8, key: []const u8) void {
     field.* = std.fmt.parseFloat(f64, value) catch null;
 }
 
-pub fn readFileAlloc(allocator: std.mem.Allocator, path: []const u8) ?[]const u8 {
-    const file = std.fs.openFileAbsolute(path, .{}) catch return null;
-    defer file.close();
-    const size = file.getEndPos() catch return null;
-    const buf = allocator.alloc(u8, @intCast(size)) catch return null;
-    const bytes_read = file.readAll(buf) catch return null;
+pub fn readFileAlloc(allocator: std.mem.Allocator, io: std.Io, path: []const u8) ?[]const u8 {
+    const file = std.Io.Dir.openFileAbsolute(io, path, .{}) catch return null;
+    defer file.close(io);
+    const st = file.stat(io) catch return null;
+    const size: usize = @intCast(st.size);
+    const buf = allocator.alloc(u8, size) catch return null;
+    const bytes_read = file.readPositionalAll(io, buf, 0) catch return null;
     if (bytes_read < size) {
         allocator.free(buf);
         return null;
@@ -104,11 +105,45 @@ pub fn readFileAlloc(allocator: std.mem.Allocator, path: []const u8) ?[]const u8
     return buf;
 }
 
-pub fn readSmallFile(path: []const u8, buf: []u8) ?[]const u8 {
-    const file = std.fs.openFileAbsolute(path, .{}) catch return null;
-    defer file.close();
-    const bytes_read = file.readAll(buf) catch return null;
+pub fn readSmallFile(io: std.Io, path: []const u8, buf: []u8) ?[]const u8 {
+    const file = std.Io.Dir.openFileAbsolute(io, path, .{}) catch return null;
+    defer file.close(io);
+    const bytes_read = file.readPositionalAll(io, buf, 0) catch return null;
     return buf[0..bytes_read];
+}
+
+/// Runs `argv` and returns a trimmed copy of its stdout, or `null` on any
+/// failure. Caller owns the returned slice. Replaces the removed
+/// `std.process.Child.run` for Zig 0.16.
+pub fn runCapture(allocator: std.mem.Allocator, io: std.Io, argv: []const []const u8) ?[]const u8 {
+    const result = std.process.run(allocator, io, .{ .argv = argv }) catch return null;
+    defer allocator.free(result.stdout);
+    defer allocator.free(result.stderr);
+    const trimmed = std.mem.trim(u8, result.stdout, " \t\n\r");
+    if (trimmed.len == 0) return null;
+    return allocator.dupe(u8, trimmed) catch null;
+}
+
+/// Returns true when a light color scheme should be used. Reads well-known
+/// theme environment variables; defaults to light when unset. macOS
+/// `defaults read` auto-detection is intentionally omitted (it required a
+/// removed `std.process.Child.run`).
+pub fn detectLightTheme() bool {
+    if (std.c.getenv("COLORSCHEME")) |cs| {
+        const scheme = std.mem.sliceTo(cs, 0);
+        if (containsIgnoreCase(scheme, "light")) return true;
+        if (containsIgnoreCase(scheme, "dark")) return false;
+    }
+    if (std.c.getenv("TERM_THEME")) |tt| {
+        const theme = std.mem.sliceTo(tt, 0);
+        if (containsIgnoreCase(theme, "light")) return true;
+        if (containsIgnoreCase(theme, "dark")) return false;
+    }
+    if (std.c.getenv("BAT_THEME")) |bt| {
+        const theme = std.mem.sliceTo(bt, 0);
+        if (containsIgnoreCase(theme, "light")) return true;
+    }
+    return true;
 }
 
 pub fn parseUptime(contents: []const u8) ?f64 {
@@ -140,48 +175,6 @@ pub fn extractVersion(text: []const u8) ?[]const u8 {
         }
     }
     return null;
-}
-
-pub fn runVersionCmd(allocator: std.mem.Allocator, argv: []const []const u8) ?[]const u8 {
-    const result = std.process.Child.run(.{
-        .allocator = allocator,
-        .argv = argv,
-    }) catch return null;
-    defer allocator.free(result.stdout);
-    defer allocator.free(result.stderr);
-    const output = if (result.stdout.len > 0) result.stdout else result.stderr;
-    if (extractVersion(output)) |ver| {
-        return allocator.dupe(u8, ver) catch null;
-    }
-    return null;
-}
-
-pub fn detectLightTheme() bool {
-    if (std.posix.getenv("COLORSCHEME")) |cs| {
-        const scheme = std.mem.sliceTo(cs, 0);
-        if (containsIgnoreCase(scheme, "light")) return true;
-        if (containsIgnoreCase(scheme, "dark")) return false;
-    }
-    if (std.posix.getenv("TERM_THEME")) |tt| {
-        const theme = std.mem.sliceTo(tt, 0);
-        if (containsIgnoreCase(theme, "light")) return true;
-        if (containsIgnoreCase(theme, "dark")) return false;
-    }
-    if (std.posix.getenv("BAT_THEME")) |bt| {
-        const theme = std.mem.sliceTo(bt, 0);
-        if (containsIgnoreCase(theme, "light")) return true;
-    }
-    const result = std.process.Child.run(.{
-        .allocator = std.heap.page_allocator,
-        .argv = &.{ "defaults", "read", "-g", "AppleInterfaceStyle" },
-    }) catch return false;
-    defer std.heap.page_allocator.free(result.stdout);
-    defer std.heap.page_allocator.free(result.stderr);
-    if (result.term.Exited == 0) {
-        const trimmed = std.mem.trim(u8, result.stdout, " \t\n\r");
-        if (containsIgnoreCase(trimmed, "Dark")) return false;
-    }
-    return true;
 }
 
 pub fn containsIgnoreCase(haystack: []const u8, needle: []const u8) bool {
