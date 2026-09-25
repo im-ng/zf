@@ -42,8 +42,9 @@ pub fn getUptime(ctx: info.Context) ?f64 {
     const comma_pos = std.mem.indexOfScalar(u8, after, ',') orelse std.mem.indexOfScalar(u8, after, ' ') orelse after.len;
     const sec_str = after[0..comma_pos];
     const boot_time = std.fmt.parseInt(i64, sec_str, 10) catch return null;
-    const now: i64 = std.time.timestamp();
-    const uptime_seconds = now - boot_time;
+    const now_ns = std.Io.Clock.Timestamp.now(ctx.io, .real).raw.nanoseconds;
+    const now_seconds = @divTrunc(now_ns, std.time.ns_per_s);
+    const uptime_seconds = now_seconds - boot_time;
     if (uptime_seconds < 0) return null;
     return @floatFromInt(uptime_seconds);
 }
