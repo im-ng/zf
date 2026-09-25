@@ -156,6 +156,36 @@ pub fn parseUptime(contents: []const u8) ?f64 {
     return std.fmt.parseFloat(f64, seconds_str) catch null;
 }
 
+/// Runs `argv` and returns the extracted version string from its stdout, or
+/// `null` on any failure. Caller owns the returned slice.
+pub fn runVersionCmd(ctx: Context, argv: []const []const u8) ?[]const u8 {
+    const result = std.process.run(ctx.allocator, ctx.io, .{ .argv = argv }) catch return null;
+    defer ctx.allocator.free(result.stdout);
+    defer ctx.allocator.free(result.stderr);
+    const trimmed = std.mem.trim(u8, result.stdout, " \t\n\r");
+    if (trimmed.len == 0) return null;
+    const ver = extractVersion(trimmed) orelse return null;
+    return ctx.allocator.dupe(u8, ver) catch null;
+}
+
+/// Returns the shell name plus its version (e.g. "bash 5.2.37") by combining
+/// the `$SHELL` basename with `$SHELL --version`. Falls back to just the
+/// basename when version detection fails.
+pub fn getShellWithVersion(ctx: Context) ?[]const u8 {
+    const shell = ctx.environ.get("SHELL") orelse return null;
+    const base = std.fs.path.basename(shell);
+    if (base.len == 0) return null;
+    const ver = runVersionCmd(ctx, &.{ shell, "--version" }) orelse {
+        return ctx.allocator.dupe(u8, base) catch null;
+    };
+    const combined = std.fmt.allocPrint(ctx.allocator, "{s} {s}", .{ base, ver }) catch {
+        ctx.allocator.free(ver);
+        return ctx.allocator.dupe(u8, base) catch null;
+    };
+    ctx.allocator.free(ver);
+    return combined;
+}
+
 pub fn extractVersion(text: []const u8) ?[]const u8 {
     var i: usize = 0;
     while (i < text.len) : (i += 1) {

@@ -33,10 +33,8 @@ pub fn formatOutput(ctx: info.Context, sys: info.SystemInfo, flags: DisplayFlags
     defer buf.deinit(allocator);
 
     var bw: BufWriter = .{ .list = &buf, .alloc = allocator };
-    var buf_writer: std.Io.Writer.Allocating = .init(allocator);
-    errdefer buf_writer.deinit();
 
-    const light_theme = info.detectLightTheme(ctx);
+    const light_theme = info.detectLightTheme();
     const logo_set = logos.getLogo(sys.distro_id, is_linux, light_theme);
     const raw_logo = logo_set.logo;
     const label_color = logo_set.label_color;
@@ -197,7 +195,7 @@ pub fn formatOutput(ctx: info.Context, sys: info.SystemInfo, flags: DisplayFlags
         }
     }
 
-    return try buf_writer.toOwnedSlice();
+    return try buf.toOwnedSlice(allocator);
 }
 
 fn addField(allocator: std.mem.Allocator, lines: *std.ArrayList([]const u8), label: []const u8, value: ?[]const u8, label_color: []const u8, value_color: []const u8, reset: []const u8) !void {
@@ -208,13 +206,6 @@ fn addField(allocator: std.mem.Allocator, lines: *std.ArrayList([]const u8), lab
     var bw: BufWriter = .{ .list = &buf, .alloc = allocator };
     try bw.print("{s}{s}{s}{s}: {s}{s}{s}", .{ label_color, bold, label, reset, value_color, val, reset });
     try lines.append(allocator, try buf.toOwnedSlice(allocator));
-
-    var buf_writer: std.Io.Writer.Allocating = .init(allocator);
-    errdefer buf_writer.deinit();
-
-    const writer = &buf_writer.writer;
-    try writer.print("{s}{s}{s}{s}: {s}{s}{s}", .{ label_color, bold, label, reset, value_color, val, reset });
-    try lines.append(allocator, try buf_writer.toOwnedSlice());
 }
 
 fn formatBytesBuf(buf: []u8, bytes: usize) []const u8 {

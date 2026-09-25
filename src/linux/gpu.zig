@@ -65,7 +65,7 @@ fn tryNvidiaProc(ctx: info.Context) ?[]const u8 {
             var path_buf: [512]u8 = undefined;
             const info_path = std.fmt.bufPrint(&path_buf, "/proc/driver/nvidia/gpus/{s}/information", .{entry.name}) catch continue;
             var buf: [4096]u8 = undefined;
-            const contents = info.readSmallFile(ctx, info_path, &buf) orelse continue;
+            const contents = info.readSmallFile(ctx.io, info_path, &buf) orelse continue;
             var lines = std.mem.splitSequence(u8, contents, "\n");
             while (lines.next()) |line| {
                 if (std.mem.startsWith(u8, line, "Model:")) {

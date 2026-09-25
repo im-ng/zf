@@ -13,12 +13,12 @@ pub const Args = struct {
 
 pub const VERSION = "1.1.0";
 
-pub fn parseArgs(args: []const [*:0]const u8) !Args {
+pub fn parseArgs(args: []const []const u8) !Args {
     var result = Args{};
     var has_category = false;
 
     for (args) |arg| {
-        const a = std.mem.span(arg);
+        const a = arg;
         if (std.mem.eql(u8, a, "-h") or std.mem.eql(u8, a, "--help")) {
             result.show_help = true;
         } else if (std.mem.eql(u8, a, "-v") or std.mem.eql(u8, a, "--version")) {

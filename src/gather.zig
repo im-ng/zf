@@ -4,18 +4,19 @@ const info = @import("info");
 const linux = @import("linux");
 const macos = @import("macos");
 
-/// Collects cross-platform system information (cpu, memory, os, hostname,
-/// kernel, uptime). Replaces the CLI-only `gatherLinuxInfo`/`gatherMacosInfo`
-/// in `main.zig` so library consumers (e.g. the `zero` framework) can call it
-/// without pulling in gpu/packages/desktop/shell detection.
-pub fn gather(allocator: std.mem.Allocator, io: std.Io) info.SystemInfo {
+/// Collects cross-platform system information, including gpu, packages,
+/// desktop environment, window manager, and shell-with-version. Threads a
+/// `Context` through every probe so environment-driven detection works.
+pub fn gather(ctx: info.Context) info.SystemInfo {
     return switch (builtin.os.tag) {
-        .macos, .ios, .maccatalyst, .driverkit, .tvos, .visionos, .watchos => gatherMacos(allocator, io),
-        else => gatherLinux(allocator, io),
+        .macos => gatherMacos(ctx),
+        else => gatherLinux(ctx),
     };
 }
 
-fn gatherLinux(allocator: std.mem.Allocator, io: std.Io) info.SystemInfo {
+fn gatherLinux(ctx: info.Context) info.SystemInfo {
+    const allocator = ctx.allocator;
+    const io = ctx.io;
     var sys: info.SystemInfo = .{ .allocator = allocator };
 
     var cpu_buf: [16384]u8 = undefined;
@@ -111,17 +112,22 @@ fn gatherLinux(allocator: std.mem.Allocator, io: std.Io) info.SystemInfo {
     if (std.c.getenv("USER")) |user| {
         sys.user = allocator.dupe(u8, std.mem.sliceTo(user, 0)) catch null;
     }
-    if (std.c.getenv("SHELL")) |shell| {
-        sys.shell = allocator.dupe(u8, std.mem.sliceTo(shell, 0)) catch null;
-    }
     if (std.c.getenv("TERM")) |term| {
         sys.terminal = allocator.dupe(u8, std.mem.sliceTo(term, 0)) catch null;
     }
 
+    sys.gpu = linux.gpu.getGpuInfo(ctx);
+    sys.packages = linux.packages.getPackages(ctx);
+    sys.de = linux.desktop.getDe(ctx);
+    sys.wm = linux.desktop.getWm(ctx);
+    sys.shell = info.getShellWithVersion(ctx) orelse sys.shell;
+
     return sys;
 }
 
-fn gatherMacos(allocator: std.mem.Allocator, io: std.Io) info.SystemInfo {
+fn gatherMacos(ctx: info.Context) info.SystemInfo {
+    const allocator = ctx.allocator;
+    const io = ctx.io;
     var sys: info.SystemInfo = .{ .allocator = allocator };
 
     {
@@ -173,12 +179,15 @@ fn gatherMacos(allocator: std.mem.Allocator, io: std.Io) info.SystemInfo {
     if (std.c.getenv("USER")) |user| {
         sys.user = allocator.dupe(u8, std.mem.sliceTo(user, 0)) catch null;
     }
-    if (std.c.getenv("SHELL")) |shell| {
-        sys.shell = allocator.dupe(u8, std.mem.sliceTo(shell, 0)) catch null;
-    }
     if (std.c.getenv("TERM")) |term| {
         sys.terminal = allocator.dupe(u8, std.mem.sliceTo(term, 0)) catch null;
     }
+
+    sys.gpu = macos.gpu.getGpuInfo(ctx);
+    sys.packages = macos.packages.getPackages(ctx);
+    sys.de = macos.desktop.getDe(ctx);
+    sys.wm = macos.desktop.getWm(ctx);
+    sys.shell = info.getShellWithVersion(ctx) orelse sys.shell;
 
     return sys;
 }

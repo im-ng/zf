@@ -74,10 +74,26 @@ fn createZfModule(b: *std.Build, target: std.Build.ResolvedTarget, optimize: std
     const linux_os = b.createModule(.{ .root_source_file = b.path("src/linux/os.zig") });
     linux_os.addImport("info", info);
 
+    const linux_utils = b.createModule(.{ .root_source_file = b.path("src/linux/utils.zig") });
+    linux_utils.addImport("info", info);
+
+    const linux_gpu = b.createModule(.{ .root_source_file = b.path("src/linux/gpu.zig") });
+    linux_gpu.addImport("info", info);
+
+    const linux_packages = b.createModule(.{ .root_source_file = b.path("src/linux/packages.zig") });
+    linux_packages.addImport("info", info);
+
+    const linux_desktop = b.createModule(.{ .root_source_file = b.path("src/linux/desktop.zig") });
+    linux_desktop.addImport("info", info);
+
     const linux = b.createModule(.{ .root_source_file = b.path("src/linux.zig") });
     linux.addImport("cpu", linux_cpu);
     linux.addImport("memory", linux_memory);
     linux.addImport("os", linux_os);
+    linux.addImport("utils", linux_utils);
+    linux.addImport("gpu", linux_gpu);
+    linux.addImport("packages", linux_packages);
+    linux.addImport("desktop", linux_desktop);
 
     const macos_cpu = b.createModule(.{ .root_source_file = b.path("src/macos/cpu.zig") });
     macos_cpu.addImport("info", info);
@@ -88,10 +104,26 @@ fn createZfModule(b: *std.Build, target: std.Build.ResolvedTarget, optimize: std
     const macos_os = b.createModule(.{ .root_source_file = b.path("src/macos/os.zig") });
     macos_os.addImport("info", info);
 
+    const macos_utils = b.createModule(.{ .root_source_file = b.path("src/macos/utils.zig") });
+    macos_utils.addImport("info", info);
+
+    const macos_gpu = b.createModule(.{ .root_source_file = b.path("src/macos/gpu.zig") });
+    macos_gpu.addImport("info", info);
+
+    const macos_packages = b.createModule(.{ .root_source_file = b.path("src/macos/packages.zig") });
+    macos_packages.addImport("info", info);
+
+    const macos_desktop = b.createModule(.{ .root_source_file = b.path("src/macos/desktop.zig") });
+    macos_desktop.addImport("info", info);
+
     const macos = b.createModule(.{ .root_source_file = b.path("src/macos.zig") });
     macos.addImport("cpu", macos_cpu);
     macos.addImport("memory", macos_memory);
     macos.addImport("os", macos_os);
+    macos.addImport("utils", macos_utils);
+    macos.addImport("gpu", macos_gpu);
+    macos.addImport("packages", macos_packages);
+    macos.addImport("desktop", macos_desktop);
 
     const gather = b.createModule(.{ .root_source_file = b.path("src/gather.zig") });
     gather.addImport("info", info);

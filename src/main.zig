@@ -49,10 +49,11 @@ pub fn main(init: std.process.Init) !u8 {
     const display_flags = zf.cli.argsToDisplayFlags(parsed_args);
     const is_linux = builtin.os.tag == .linux;
 
-    var sys: zf.SystemInfo = zf.gather.gather(allocator, init.io);
+    const ctx = zf.info.Context{ .allocator = allocator, .io = init.io, .environ = init.environ_map };
+    var sys: zf.SystemInfo = zf.gather.gather(ctx);
     defer sys.deinit();
 
-    const result = zf.output.formatOutput(allocator, sys, display_flags, is_linux) catch |err| {
+    const result = zf.output.formatOutput(ctx, sys, display_flags, is_linux) catch |err| {
         std.debug.print("Error formatting output: {}\n", .{err});
         return 1;
     };

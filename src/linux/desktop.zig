@@ -130,7 +130,7 @@ fn findWmProcess(ctx: info.Context) ?[]const u8 {
         var path_buf: [128]u8 = undefined;
         const path = std.fmt.bufPrint(&path_buf, "/proc/{s}/comm", .{entry.name}) catch continue;
         var comm_buf: [64]u8 = undefined;
-        const comm_data = info.readSmallFile(ctx, path, &comm_buf) orelse continue;
+        const comm_data = info.readSmallFile(ctx.io, path, &comm_buf) orelse continue;
         const comm = std.mem.trim(u8, comm_data, " \n\r\t");
         if (comm.len == 0) continue;
         for (known_wms) |wm| {
