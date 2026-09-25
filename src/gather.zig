@@ -4,14 +4,32 @@ const info = @import("info");
 const linux = @import("linux");
 const macos = @import("macos");
 
-/// Collects cross-platform system information, including gpu, packages,
-/// desktop environment, window manager, and shell-with-version. Threads a
-/// `Context` through every probe so environment-driven detection works.
-pub fn gather(ctx: info.Context) info.SystemInfo {
+pub fn gather(allocator: std.mem.Allocator, io: std.Io) info.SystemInfo {
+    var env_map = loadEnviron(allocator) catch {
+        return .{ .allocator = allocator };
+    };
+    defer env_map.deinit();
+
+    const ctx: info.Context = .{
+        .allocator = allocator,
+        .io = io,
+        .environ = &env_map,
+    };
+
     return switch (builtin.os.tag) {
         .macos => gatherMacos(ctx),
         else => gatherLinux(ctx),
     };
+}
+
+/// Builds an environment map from the process's global environment block so
+/// that env-driven probes (shell, desktop, etc.) work without the caller
+/// having to thread an `Environ.Map` through `gather`.
+fn loadEnviron(allocator: std.mem.Allocator) !std.process.Environ.Map {
+    const env_slice = std.mem.span(std.c.environ);
+    const block: std.process.Environ.PosixBlock = .{ .slice = @ptrCast(env_slice) };
+    const environ: std.process.Environ = .{ .block = block };
+    return try std.process.Environ.createMap(environ, allocator);
 }
 
 fn gatherLinux(ctx: info.Context) info.SystemInfo {

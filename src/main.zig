@@ -50,7 +50,7 @@ pub fn main(init: std.process.Init) !u8 {
     const is_linux = builtin.os.tag == .linux;
 
     const ctx = zf.info.Context{ .allocator = allocator, .io = init.io, .environ = init.environ_map };
-    var sys: zf.SystemInfo = zf.gather.gather(ctx);
+    var sys: zf.SystemInfo = zf.gather.gather(allocator, init.io);
     defer sys.deinit();
 
     const result = zf.output.formatOutput(ctx, sys, display_flags, is_linux) catch |err| {
