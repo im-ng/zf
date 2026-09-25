@@ -1,4 +1,5 @@
 .{
+    .name = .zf,
     .version = "0.1.2",
     .fingerprint = 0x30d847ee7f1a5dfc, // Changing this has security and trust implications.
     .minimum_zig_version = "0.16.0",
@@ -7,5 +8,8 @@
         "build.zig",
         "build.zig.zon",
         "src",
+        // For example...
+        //"LICENSE",
+        //"README.md",
     },
 }
