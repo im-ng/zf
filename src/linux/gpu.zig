@@ -23,7 +23,7 @@ fn tryNvidiaSmi(ctx: info.Context) ?[]const u8 {
 
 fn tryLspci(ctx: info.Context) ?[]const u8 {
     const result = std.process.run(ctx.allocator, ctx.io, .{
-        .argv = &.{ "lspci" },
+        .argv = &.{"lspci"},
     }) catch return null;
     defer ctx.allocator.free(result.stdout);
     defer ctx.allocator.free(result.stderr);

@@ -66,15 +66,15 @@ fn tryDeVersion(ctx: info.Context, de_name: []const u8) ?[]const u8 {
 }
 
 const known_wms = [_][]const u8{
-    "i3",           "sway",        "bspwm",
-    "awesome",      "dwm",         "openbox",
-    "xfwm4",        "kwin_wayland", "kwin_x11",
-    "mutter",       "gnome-shell", "compiz",
-    "fluxbox",      "icewm",       "xmonad",
-    "hyprland",     "wayfire",     "marco",
-    "metacity",     "muffin",      "enlightenment",
-    "weston",       "river",       "dwl",
-    "labwc",        "picom",
+    "i3",       "sway",         "bspwm",
+    "awesome",  "dwm",          "openbox",
+    "xfwm4",    "kwin_wayland", "kwin_x11",
+    "mutter",   "gnome-shell",  "compiz",
+    "fluxbox",  "icewm",        "xmonad",
+    "hyprland", "wayfire",      "marco",
+    "metacity", "muffin",       "enlightenment",
+    "weston",   "river",        "dwl",
+    "labwc",    "picom",
 };
 
 pub fn getWm(ctx: info.Context) ?[]const u8 {

@@ -37,14 +37,24 @@ pub fn getUptime(ctx: info.Context) ?f64 {
 
     const trimmed = std.mem.trim(u8, result.stdout, " \t\n\r");
     const sec_prefix = "sec = ";
+
     const sec_start = std.mem.indexOf(u8, trimmed, sec_prefix) orelse return null;
     const after = trimmed[sec_start + sec_prefix.len ..];
+
     const comma_pos = std.mem.indexOfScalar(u8, after, ',') orelse std.mem.indexOfScalar(u8, after, ' ') orelse after.len;
     const sec_str = after[0..comma_pos];
+
     const boot_time = std.fmt.parseInt(i64, sec_str, 10) catch return null;
     const now_ns = std.Io.Clock.Timestamp.now(ctx.io, .real).raw.nanoseconds;
-    const now_seconds = @divTrunc(now_ns, std.time.ns_per_s);
+
+    // Floor (not trunc) the nanoseconds: both operands are non-negative, so the
+    // result is identical, but @divFloor documents the intended rounding toward
+    // zero-age-aware truncation and satisfies the style guide's division rule.
+    const now_seconds = @divFloor(now_ns, std.time.ns_per_s);
     const uptime_seconds = now_seconds - boot_time;
-    if (uptime_seconds < 0) return null;
-    return @floatFromInt(uptime_seconds);
+
+    // Only a non-negative uptime is valid (clock skew could yield a negative
+    // delta); state the proceed condition positively and fall back to null.
+    if (uptime_seconds >= 0) return @floatFromInt(uptime_seconds);
+    return null;
 }
