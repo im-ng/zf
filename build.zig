@@ -26,9 +26,7 @@ pub fn build(b: *std.Build) void {
     run_step.dependOn(&run_cmd.step);
     run_cmd.step.dependOn(b.getInstallStep());
 
-    if (b.args) |args| {
-        run_cmd.addArgs(args);
-    }
+    run_cmd.addPassthruArgs();
 
     const mod_tests = b.addTest(.{ .root_module = zf_mod });
     const exe_tests = b.addTest(.{ .root_module = exe.root_module });
@@ -51,8 +49,7 @@ pub fn build(b: *std.Build) void {
     test_step.dependOn(&b.addRunArtifact(suite_tests).step);
 }
 
-fn createZfModule(b: *std.Build, target: std.Build.ResolvedTarget, optimize: std.builtin.OptimizeMode) *std.Build.Module {
-    _ = optimize;
+fn createZfModule(b: *std.Build, target: std.Build.ResolvedTarget, optimize: std.builtin.Optimize) *std.Build.Module {
     const info = b.createModule(.{ .root_source_file = b.path("src/info.zig") });
 
     const logos = b.createModule(.{ .root_source_file = b.path("src/logos.zig") });
@@ -130,10 +127,10 @@ fn createZfModule(b: *std.Build, target: std.Build.ResolvedTarget, optimize: std
     gather.addImport("linux", linux);
     gather.addImport("macos", macos);
 
-    const zf = b.addModule("zf", .{
+        const zf = b.addModule("zf", .{
         .root_source_file = b.path("src/zf.zig"),
         .target = target,
-        .link_libc = true,
+        .optimize = optimize,
     });
     zf.addImport("info_mod", info);
     zf.addImport("logos_mod", logos);
