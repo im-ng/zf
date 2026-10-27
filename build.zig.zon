@@ -1,8 +1,8 @@
 .{
     .name = .zf,
-    .version = "0.1.3",
+    .version = "0.1.4",
     .fingerprint = 0x30d847ee7f1a5dfc, // Changing this has security and trust implications.
-    .minimum_zig_version = "0.16.0",
+    .minimum_zig_version = "0.17.0",
     .dependencies = .{},
     .paths = .{
         "build.zig",

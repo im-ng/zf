@@ -217,11 +217,10 @@ pub fn containsIgnoreCase(haystack: []const u8, needle: []const u8) bool {
         for (needle, 0..) |c, j| {
             const hc = if (haystack[i + j] >= 'A' and haystack[i + j] <= 'Z') haystack[i + j] + 32 else haystack[i + j];
             const nc = if (c >= 'A' and c <= 'Z') c + 32 else c;
-            // Characters match: keep scanning. A mismatch falls through and
-            // marks the candidate as non-matching below.
-            if (hc == nc) continue;
-            match = false;
-            break;
+            if (hc != nc) {
+                match = false;
+                break;
+            }
         }
         if (match) return true;
     }
